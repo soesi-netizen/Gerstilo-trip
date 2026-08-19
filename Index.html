@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Reise-Begleiter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #10202B;
+    --bg-deep: #0A161E;
+    --surface: #1B2E3A;
+    --surface-hi: #24404F;
+    --paper: #F6F1E2;
+    --paper-dim: #E8E0CC;
+    --ink: #1B2E3A;
+    --gold: #D8A448;
+    --gold-dim: #9A7A3C;
+    --coral: #E8664F;
+    --sage: #6FA98E;
+    --text: #EDEAE0;
+    --text-dim: #93A6AF;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; }
+  body{
+    background: radial-gradient(ellipse at top, #16303F 0%, var(--bg-deep) 65%);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: 100px;
+  }
+  .app { max-width: 560px; margin: 0 auto; padding: 0 16px; }
+
+  /* Header */
+  header { padding: 28px 4px 18px; }
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin: 0 0 6px;
+  }
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 30px;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+  .sub { color: var(--text-dim); font-size: 14px; margin:0; }
+
+  /* Route strip */
+  .route-strip {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 18px 4px 22px;
+    scrollbar-width: none;
+  }
+  .route-strip::-webkit-scrollbar { display:none; }
+  .stub {
+    flex: 0 0 auto;
+    min-width: 132px;
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: var(--radius);
+    padding: 14px 14px 12px;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+  }
+  .stub.active {
+    border-color: var(--gold);
+    background: var(--surface-hi);
+  }
+  .stub:active { transform: scale(0.97); }
+  .stub .city {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 2px;
+  }
+  .stub .country { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; }
+  .stub .dates {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--gold);
+  }
+  .stub-add {
+    flex: 0 0 auto;
+    min-width: 60px;
+    border: 1px dashed rgba(255,255,255,0.25);
+    border-radius: var(--radius);
+    display:flex; align-items:center; justify-content:center;
+    font-size: 22px;
+    color: var(--text-dim);
+    cursor: pointer;
+    background: transparent;
+  }
+  .stub-add:active { transform: scale(0.95); }
+
+  /* Detail panel */
+  .panel {
+    background: var(--surface);
+    border-radius: 18px;
+    padding: 20px;
+    margin-bottom: 16px;
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+  .panel-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin: 0 0 14px;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .edit-btn {
+    background:none; border:none; color: var(--gold);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    cursor:pointer; padding:4px 8px;
+  }
+
+  /* Ticket stub styling for hotel card */
+  .ticket {
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 12px;
+    padding: 18px 18px 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .ticket:before, .ticket:after {
+    content: "";
+    position: absolute;
+    width: 20px; height: 20px;
+    background: var(--surface);
+    border-radius: 50%;
+    top: 50%; transform: translateY(-50%);
+  }
+  .ticket:before { left: -10px; }
+  .ticket:after { right: -10px; }
+  .hotel-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 19px;
+    margin: 0 0 10px;
+  }
+  .field { margin-bottom: 10px; }
+  .field-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    margin-bottom: 2px;
+  }
+  .field-value {
+    font-size: 14.5px;
+    line-height: 1.4;
+  }
+  .field-value a { color: var(--ink); text-decoration: none; border-bottom: 1.5px solid var(--gold); }
+  .field-row { display:flex; gap:10px; }
+  .field-row .field { flex:1; }
+  .divider-dash {
+    border: none;
+    border-top: 1.5px dashed var(--paper-dim);
+    margin: 12px 0;
+  }
+  .notes-text { font-size: 13.5px; color: #3d4f4a; line-height: 1.5; }
+
+  /* Itinerary list */
+  .day-group { margin-bottom: 14px; }
+  .day-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--gold);
+    letter-spacing: 0.08em;
+    margin: 18px 0 8px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255,255,255,0.07);
+  }
+  .day-label:first-child { border-top:none; margin-top:0; }
+  .item {
+    display:flex;
+    gap: 12px;
+    padding: 9px 0;
+    align-items: flex-start;
+  }
+  .item-time {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    min-width: 42px;
+    padding-top: 1px;
+  }
+  .item-body { flex:1; }
+  .item-title { font-size: 14px; font-weight: 500; }
+  .item-note { font-size: 12px; color: var(--text-dim); margin-top: 1px; }
+  .item-del {
+    background:none; border:none; color: var(--text-dim); opacity:0.5;
+    font-size: 16px; cursor:pointer; padding: 0 4px;
+  }
+  .item-del:active { opacity: 1; }
+
+  .add-item-row {
+    display:flex; gap:8px; margin-top: 12px; flex-wrap: wrap;
+  }
+  input, textarea {
+    background: var(--bg-deep);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 9px 11px;
+    font-family: 'Inter', sans-serif;
+    font-size: 13.5px;
+    width: 100%;
+  }
+  input::placeholder, textarea::placeholder { color: var(--text-dim); }
+  .ticket input {
+    background: #fff;
+    color: var(--ink);
+    border: 1px solid var(--paper-dim);
+    font-size: 14px;
+  }
+
+  .btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-radius: 8px;
+    padding: 10px 14px;
+    border: none;
+    cursor: pointer;
+  }
+  .btn-gold { background: var(--gold); color: #2a1d05; font-weight: 600; }
+  .btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid rgba(255,255,255,0.15); }
+  .btn-danger { background: transparent; color: var(--coral); border: 1px solid rgba(232,102,79,0.4); }
+  .btn:active { transform: scale(0.97); }
+
+  .empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+
+  .modal-backdrop {
+    position: fixed; inset:0; background: rgba(0,0,0,0.55);
+    display:flex; align-items:flex-end; justify-content:center;
+    z-index: 50;
+  }
+  .modal {
+    background: var(--surface-hi);
+    width:100%; max-width: 560px;
+    border-radius: 20px 20px 0 0;
+    padding: 22px 18px 26px;
+    max-height: 85vh;
+    overflow-y: auto;
+    animation: slideUp 0.22s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(24px); opacity:0; } to { transform: translateY(0); opacity:1; } }
+  .modal h3 { font-family:'Space Grotesk',sans-serif; margin: 0 0 14px; font-size: 18px; }
+  .modal-field { margin-bottom: 10px; }
+  .modal-field label {
+    display:block; font-family:'IBM Plex Mono', monospace; font-size: 10px;
+    letter-spacing:0.1em; text-transform:uppercase; color: var(--text-dim); margin-bottom: 4px;
+  }
+  .modal-actions { display:flex; gap:8px; margin-top:16px; }
+  .modal-actions .btn { flex:1; }
+
+  .import-banner {
+    background: var(--surface);
+    border: 1px dashed var(--gold-dim);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .import-banner button {
+    flex: 0 0 auto;
+  }
+
+  .fab {
+    position: fixed;
+    bottom: 22px; left: 50%; transform: translateX(-50%);
+    background: var(--gold);
+    color: #2a1d05;
+    border: none;
+    border-radius: 999px;
+    padding: 13px 22px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    box-shadow: 0 8px 24px rgba(216,164,72,0.35);
+    cursor: pointer;
+    z-index: 40;
+  }
+  .auth-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .auth-card {
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 18px;
+    padding: 28px 24px;
+    max-width: 360px;
+    width: 100%;
+    text-align: center;
+  }
+  .auth-card h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 22px;
+    margin: 4px 0 8px;
+  }
+  .auth-sub {
+    color: var(--text-dim);
+    font-size: 13.5px;
+    margin: 0 0 20px;
+    line-height: 1.4;
+  }
+  .auth-denied {
+    color: var(--coral);
+    font-size: 13.5px;
+    margin: 10px 0 18px;
+    line-height: 1.4;
+  }
+
+  .countdown {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    background: var(--bg-deep);
+    border: 1px solid rgba(216,164,72,0.25);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin: 4px 0 6px;
+  }
+  .countdown-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    font-size: 34px;
+    color: var(--gold);
+    letter-spacing: 0.02em;
+    min-width: 0;
+  }
+  .countdown-label {
+    font-size: 12.5px;
+    color: var(--text-dim);
+    line-height: 1.3;
+  }
+
+  .fab:active { transform: translateX(-50%) scale(0.96); }
+
+  .status-banner {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--sage);
+    text-align:center;
+    padding: 6px 0 0;
+    min-height: 16px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div id="authScreen" class="auth-screen">
+  <div class="auth-card" id="authCard">
+    <p class="eyebrow">Reise-Begleiter</p>
+    <h2>Anmeldung nötig</h2>
+    <p class="auth-sub">Nur für euch zwei — meldet euch mit Google an.</p>
+    <button class="btn btn-gold" id="googleSignInBtn" style="width:100%;padding:13px;">Mit Google anmelden</button>
+  </div>
+</div>
+
+<div class="app" id="app" style="display:none;">
+  <header>
+    <p class="eyebrow" id="tripEyebrow">Reiseroute · Sept 2026</p>
+    <h1 id="tripTitle">Singapur → Indonesien</h1>
+    <div class="countdown" id="countdown"></div>
+    <p class="sub">Tippt eine Station an für Hotel, Kontakt & Plan · geteilter Stand für euch beide</p>
+  </header>
+
+  <div class="route-strip" id="routeStrip"></div>
+
+  <div id="importBanner"></div>
+
+  <div id="detailArea"></div>
+
+  <div class="status-banner" id="statusBanner"></div>
+</div>
+
+<button class="fab" id="addStopFab">+ Station hinzufügen</button>
+
+<div id="modalRoot"></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+  // Firebase-Config für "Gerstilo Trip"
+  const firebaseConfig = {
+    apiKey: "AIzaSyCow2gRrkJCsRBFi9RBKbZk2Z3vjRA8w-U",
+    authDomain: "gerstilo-trip.firebaseapp.com",
+    projectId: "gerstilo-trip",
+    storageBucket: "gerstilo-trip.firebasestorage.app",
+    messagingSenderId: "384923205801",
+    appId: "1:384923205801:web:f7bfc0558e585d127fa9b8"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  window.db = getFirestore(app);
+  window.doc = doc;
+  window.setDoc = setDoc;
+  window.onSnapshot = onSnapshot;
+  window.auth = getAuth(app);
+  window.googleProvider = new GoogleAuthProvider();
+  window.signInWithPopup = signInWithPopup;
+  window.onAuthStateChanged = onAuthStateChanged;
+  window.signOut = signOut;
+  window.dispatchEvent(new Event('firebaseReady'));
+</script>
+
+<script>
+(function(){
+  let state = null;
+  let activeStopId = null;
+
+  const defaultData = () => ({
+    tripName: "Singapur → Indonesien",
+    stops: [
+      {
+        id: 'sg-1',
+        city: 'Singapur',
+        country: 'Singapur',
+        checkIn: '2026-09-12',
+        checkOut: '2026-09-16',
+        hotelName: 'Oakwood Premier Raffles Place',
+        address: '88 Market Street, Level 9 (CapitaSpring), Singapur 048948',
+        phone: '+65 6958 4188',
+        contactPerson: '',
+        notes: 'Direkt am Raffles Place MRT (Exit D, 1 Min). Fitness Park im Haus.',
+        itinerary: [
+          {id:'i1', date:'Sa 12.9.', time:'16:30', title:'Ankunft Flughafen Changi', note:''},
+          {id:'i2', date:'Sa 12.9.', time:'18:00', title:'Check-in Hotel', note:''},
+          {id:'i3', date:'Sa 12.9.', time:'19:00', title:'Chinatown Complex Food Centre', note:'Dumplings, Congee, Hawker Chan'},
+          {id:'i4', date:'Sa 12.9.', time:'20:45', title:'Gardens by the Bay – Garden Rhapsody', note:'Lichtshow an den Supertrees'},
+          {id:'i5', date:'So 13.9.', time:'8:00', title:'Leihrad abholen', note:'Anywheel / HelloRide App'},
+          {id:'i6', date:'So 13.9.', time:'8:30', title:'Frühstück: Tiong Bahru Market', note:'Jian Bo Shui Kueh, Koh Brothers'},
+          {id:'i7', date:'So 13.9.', time:'10:30', title:'Asian Civilisations Museum', note:''},
+          {id:'i8', date:'So 13.9.', time:'12:30', title:'Mittagessen: Lau Pa Sat', note:''},
+          {id:'i9', date:'So 13.9.', time:'16:00', title:'Marina Bay Sands SkyPark', note:'+ CÉ LA VI Rooftop'},
+          {id:'i10', date:'So 13.9.', time:'19:00', title:'Abendessen: The Coconut Club', note:'Nasi Lemak, Satay – Taxi empfohlen'},
+          {id:'i11', date:'Mo 14.9.', time:'7:15', title:'Frühstück: Ya Kun Kaya Toast', note:'Far East Square'},
+          {id:'i12', date:'Mo 14.9.', time:'8:00', title:'Abfahrt Richtung Mandai', note:'~45 Min'},
+          {id:'i13', date:'Mo 14.9.', time:'9:00', title:'Bird Paradise', note:''},
+          {id:'i14', date:'Mo 14.9.', time:'12:30', title:'Lunch in the Wild: Crimson Restaurant', note:'Vorab reserviert!'},
+          {id:'i15', date:'Mo 14.9.', time:'14:00', title:'Singapore Zoo', note:''},
+          {id:'i16', date:'Mo 14.9.', time:'17:30', title:'Abendessen: Ah Meng Restaurant', note:''},
+          {id:'i17', date:'Mo 14.9.', time:'19:30', title:'Night Safari', note:'Zeitfenster vorab gebucht'},
+          {id:'i18', date:'Di 15.9.', time:'6:00', title:'Morgenlauf: Marina Bay Loop', note:'~3,5 km, Recovery'},
+          {id:'i19', date:'Di 15.9.', time:'8:30', title:'Frühstück: Tekka Centre', note:'Briyani / Duck Rice'},
+          {id:'i20', date:'Di 15.9.', time:'10:30', title:'Schmuck-Browsing Little India', note:''},
+          {id:'i21', date:'Di 15.9.', time:'12:00', title:'Newton Food Centre', note:'Oyster Omelette, Chili Crab'},
+          {id:'i22', date:'Di 15.9.', time:'15:00', title:'Singapore Botanic Gardens', note:''},
+          {id:'i23', date:'Di 15.9.', time:'19:30', title:'Candlenut', note:'Vorab reserviert!'},
+          {id:'i24', date:'Mi 16.9.', time:'6:00', title:'Morgenlauf', note:'~3,5 km, kurz gehalten'},
+          {id:'i25', date:'Mi 16.9.', time:'7:15', title:'Frühstück: Maxwell Food Centre', note:'Tian Tian Chicken Rice, Oyster Cake'},
+          {id:'i26', date:'Mi 16.9.', time:'10:00', title:'Raffles City Shopping Centre', note:'Charles & Keith, Pedro, TWG Tea'},
+          {id:'i27', date:'Mi 16.9.', time:'11:00', title:'Raffles Hotel Long Bar', note:'Singapore Sling'},
+          {id:'i28', date:'Mi 16.9.', time:'11:45', title:'Haji Lane & Arab Street', note:''},
+          {id:'i29', date:'Mi 16.9.', time:'12:45', title:'Zurück zum Hotel, Packen', note:''},
+          {id:'i30', date:'Mi 16.9.', time:'14:00', title:'Richtung Flughafen', note:'Flug 17:00 nach Surabaya'}
+        ]
+      },
+      {
+        id: 'id-1',
+        city: 'Surabaya',
+        country: 'Indonesien',
+        checkIn: '2026-09-16',
+        checkOut: '',
+        hotelName: '',
+        address: '',
+        phone: '',
+        contactPerson: '',
+        notes: '',
+        itinerary: []
+      }
+    ]
+  });
+
+  function uid(){ return Math.random().toString(36).slice(2,9); }
+
+  const ALLOWED_EMAILS = ['christine.soesilo@gmail.com', 'flo12055@gmail.com'];
+
+  function showAuthScreen(){
+    document.getElementById('authScreen').style.display = 'flex';
+    document.getElementById('app').style.display = 'none';
+  }
+  function showApp(){
+    document.getElementById('authScreen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+  }
+  function renderLoginDefault(){
+    document.getElementById('authCard').innerHTML = `
+      <p class="eyebrow">Reise-Begleiter</p>
+      <h2>Anmeldung nötig</h2>
+      <p class="auth-sub">Nur für euch zwei — meldet euch mit Google an.</p>
+      <button class="btn btn-gold" id="googleSignInBtn" style="width:100%;padding:13px;">Mit Google anmelden</button>
+    `;
+    document.getElementById('googleSignInBtn').onclick = () => {
+      window.signInWithPopup(window.auth, window.googleProvider).catch(err => {
+        alert('Anmeldung fehlgeschlagen: ' + err.message);
+      });
+    };
+  }
+  function renderAccessDenied(email){
+    document.getElementById('authCard').innerHTML = `
+      <p class="eyebrow">Reise-Begleiter</p>
+      <h2>Kein Zugriff</h2>
+      <p class="auth-denied">${escapeHtml(email)} ist nicht für diese Reise freigeschaltet.</p>
+      <button class="btn btn-ghost" id="signOutBtn" style="width:100%;padding:13px;">Abmelden & anderes Konto wählen</button>
+    `;
+    document.getElementById('signOutBtn').onclick = () => window.signOut(window.auth);
+  }
+
+  function initAuthGate(){
+    showAuthScreen();
+    renderLoginDefault();
+    window.onAuthStateChanged(window.auth, (user) => {
+      if (user) {
+        const email = (user.email || '').toLowerCase();
+        if (ALLOWED_EMAILS.includes(email)) {
+          showApp();
+          if (!window.__firestoreSyncStarted) {
+            window.__firestoreSyncStarted = true;
+            initFirestoreSync();
+          }
+        } else {
+          showAuthScreen();
+          renderAccessDenied(user.email || '');
+        }
+      } else {
+        showAuthScreen();
+        renderLoginDefault();
+      }
+    });
+  }
+
+  let unsubscribe = null;
+  let suppressNextSnapshot = false;
+
+  function initFirestoreSync(){
+    const docRef = window.doc(window.db, 'tripData', 'shared');
+    window.tripDocRef = docRef;
+
+    unsubscribe = window.onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        state = snap.data();
+      } else {
+        state = defaultData();
+        window.setDoc(docRef, state).catch(()=>{});
+      }
+      if(!activeStopId || !state.stops.find(s => s.id === activeStopId)){
+        activeStopId = state.stops[0] ? state.stops[0].id : null;
+      }
+      let needsMigrationSave = false;
+      if(!state.tripStartDate){ state.tripStartDate = '2026-09-11'; needsMigrationSave = true; }
+      if(!state.tripEndDate){ state.tripEndDate = '2026-10-03'; needsMigrationSave = true; }
+      render();
+      if(needsMigrationSave) saveState();
+      setStatus('Live-Sync aktiv ✓', true);
+    }, (err) => {
+      console.error(err);
+      setStatus('Verbindung fehlgeschlagen — Firebase-Config prüfen', false);
+      if(!state){ state = defaultData(); activeStopId = state.stops[0].id; render(); }
+    });
+  }
+
+  async function saveState(){
+    try {
+      await window.setDoc(window.tripDocRef, state);
+      setStatus('Gespeichert ✓', true);
+    } catch(e) {
+      console.error(e);
+      setStatus('Speichern fehlgeschlagen', false);
+    }
+  }
+
+  let statusTimer;
+  function setStatus(msg, ok){
+    const el = document.getElementById('statusBanner');
+    el.textContent = msg;
+    el.style.color = ok ? 'var(--sage)' : 'var(--coral)';
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(()=>{ el.textContent=''; }, 1800);
+  }
+
+  /* ---- Flugdaten-Import (einmalig) ---- */
+  const flightImportData = {
+    sgAdd: [
+      {id:'flt1', date:'Fr 11.9.', time:'14:05', title:'Zug: Berlin-Pankow → Flughafen BER', note:'S2 bis Potsdamer Platz, dann FEX (Ankunft 14:45)'},
+      {id:'flt2', date:'Fr 11.9.', time:'17:45', title:'Flug: Berlin (BER) → Frankfurt (FRA)', note:'Operated by Lufthansa, Ankunft 18:55'},
+      {id:'flt3', date:'Fr 11.9.', time:'21:40', title:'Flug: Frankfurt (FRA) → Singapur (SIN)', note:'SQ 325, Ankunft Sa 16:20 Uhr'},
+      {id:'flt4', date:'Mi 16.9.', time:'16:55', title:'Flug: Singapur (SIN) → Surabaya (SUB)', note:'SQ 928, Terminal 2, Ankunft 18:20'}
+    ],
+    subAdd: [
+      {id:'flt5', date:'Mi 16.9.', time:'18:20', title:'Ankunft Surabaya (Juanda Intl)', note:'SQ 928 aus Singapur, Terminal 2'},
+      {id:'flt6', date:'Fr 2.10.', time:'19:15', title:'Flug: Surabaya (SUB) → Singapur (SIN)', note:'SQ 929, Terminal 2, Ankunft 22:45'},
+      {id:'flt7', date:'Fr 2.10.', time:'23:55', title:'Flug: Singapur (SIN) → Frankfurt (FRA)', note:'SQ 26, Terminal 3, Ankunft Sa 07:05'},
+      {id:'flt8', date:'Sa 3.10.', time:'09:45', title:'Flug: Frankfurt (FRA) → Berlin (BER)', note:'Operated by Lufthansa, Ankunft 10:55'}
+    ]
+  };
+
+  function needsFlightImport(){
+    if(state.flightsImported) return false;
+    const sg = state.stops.find(s => s.id === 'sg-1');
+    const sub = state.stops.find(s => s.id === 'id-1');
+    return !!(sg && sub);
+  }
+
+  async function importFlightData(){
+    const sg = state.stops.find(s => s.id === 'sg-1');
+    const sub = state.stops.find(s => s.id === 'id-1');
+    if(!sg || !sub) return;
+
+    const newSg = flightImportData.sgAdd.filter(it => !sg.itinerary.find(x => x.id === it.id));
+    sg.itinerary = [...newSg, ...sg.itinerary];
+
+    const arr = sg.itinerary.find(x => x.id === 'i1');
+    if(arr) arr.time = '16:20';
+
+    const newSubArrival = flightImportData.subAdd.filter(it => it.id === 'flt5' && !sub.itinerary.find(x => x.id === it.id));
+    sub.itinerary = [...newSubArrival, ...sub.itinerary];
+    const newSubReturn = flightImportData.subAdd.filter(it => it.id !== 'flt5' && !sub.itinerary.find(x => x.id === it.id));
+    sub.itinerary = [...sub.itinerary, ...newSubReturn];
+
+    sub.checkOut = '2026-10-02';
+    state.flightsImported = true;
+
+    await saveState();
+    render();
+  }
+
+  function fmtRange(a,b){
+    if(!a && !b) return 'Daten offen';
+    const f = (d) => d ? d.slice(8,10)+'.'+d.slice(5,7)+'.' : '?';
+    return f(a) + (b ? ' – '+f(b) : '');
+  }
+
+  function render(){
+    document.getElementById('tripTitle').textContent = state.tripName;
+    renderCountdown();
+    renderStrip();
+    renderDetail();
+    renderImportBanner();
+  }
+
+  function renderCountdown(){
+    const el = document.getElementById('countdown');
+    if(!state.tripStartDate || !state.tripEndDate){ el.innerHTML = ''; return; }
+    const now = new Date();
+    now.setHours(0,0,0,0);
+    const start = new Date(state.tripStartDate + 'T00:00:00');
+    const end = new Date(state.tripEndDate + 'T00:00:00');
+    const dayMs = 86400000;
+    let num, label;
+    if(now < start){
+      const days = Math.ceil((start - now) / dayMs);
+      num = days;
+      label = (days === 1 ? 'Tag' : 'Tage') + ' bis zur Abreise';
+    } else if(now <= end){
+      const days = Math.ceil((end - now) / dayMs);
+      num = days;
+      label = 'Reise läuft ✈ · noch ' + days + (days === 1 ? ' Tag' : ' Tage') + ' bis daheim';
+    } else {
+      num = '✓';
+      label = 'Reise beendet';
+    }
+    el.innerHTML = `<div class="countdown-num">${num}</div><div class="countdown-label">${label}</div>`;
+  }
+
+  function renderImportBanner(){
+    const el = document.getElementById('importBanner');
+    if(!needsFlightImport()){ el.innerHTML = ''; return; }
+    el.innerHTML = `
+      <div class="import-banner">
+        <span>✈ Flug- & Bahndaten (Zug BER, Flüge SQ325/928/929/26/2018) gefunden — jetzt in Singapur & Surabaya einfügen?</span>
+        <button class="btn btn-gold" id="importFlightsBtn">Übernehmen</button>
+      </div>
+    `;
+    document.getElementById('importFlightsBtn').onclick = importFlightData;
+  }
+
+  function renderStrip(){
+    const strip = document.getElementById('routeStrip');
+    strip.innerHTML = '';
+    state.stops.forEach(s => {
+      const el = document.createElement('div');
+      el.className = 'stub' + (s.id===activeStopId ? ' active' : '');
+      el.innerHTML = `
+        <div class="city">${escapeHtml(s.city||'Neue Station')}</div>
+        <div class="country">${escapeHtml(s.country||'')}</div>
+        <div class="dates">${fmtRange(s.checkIn, s.checkOut)}</div>
+      `;
+      el.onclick = () => { activeStopId = s.id; render(); };
+      strip.appendChild(el);
+    });
+    const add = document.createElement('div');
+    add.className = 'stub-add';
+    add.textContent = '+';
+    add.onclick = openAddStopModal;
+    strip.appendChild(add);
+  }
+
+  function renderDetail(){
+    const area = document.getElementById('detailArea');
+    const stop = state.stops.find(s => s.id === activeStopId);
+    if(!stop){ area.innerHTML = '<div class="empty">Noch keine Station angelegt.<br>Tippt auf „+ Station hinzufügen".</div>'; return; }
+
+    const days = [...new Set(stop.itinerary.map(i=>i.date))];
+
+    area.innerHTML = `
+      <div class="panel">
+        <div class="panel-title">
+          <span>Unterkunft</span>
+          <button class="edit-btn" id="editHotelBtn">Bearbeiten</button>
+        </div>
+        <div class="ticket">
+          <div class="hotel-name">${stop.hotelName ? escapeHtml(stop.hotelName) : '— noch kein Hotel hinterlegt —'}</div>
+          <div class="field">
+            <div class="field-label">Adresse</div>
+            <div class="field-value">${stop.address ? `<a href="https://maps.google.com/?q=${encodeURIComponent(stop.address)}" target="_blank">${escapeHtml(stop.address)}</a>` : '–'}</div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <div class="field-label">Telefon</div>
+              <div class="field-value">${stop.phone ? `<a href="tel:${stop.phone.replace(/\\s/g,'')}">${escapeHtml(stop.phone)}</a>` : '–'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Ansprechpartner</div>
+              <div class="field-value">${stop.contactPerson ? escapeHtml(stop.contactPerson) : '–'}</div>
+            </div>
+          </div>
+          ${stop.notes ? `<hr class="divider-dash"><div class="notes-text">${escapeHtml(stop.notes)}</div>` : ''}
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <span>Tagesplan</span>
+          <button class="edit-btn" id="delStopBtn" style="color:var(--coral)">Station löschen</button>
+        </div>
+        <div id="itineraryList">
+          ${days.length ? days.map(d => `
+            <div class="day-label">${escapeHtml(d)}</div>
+            ${stop.itinerary.filter(i=>i.date===d).map(i => `
+              <div class="item">
+                <div class="item-time">${escapeHtml(i.time||'')}</div>
+                <div class="item-body">
+                  <div class="item-title">${escapeHtml(i.title)}</div>
+                  ${i.note ? `<div class="item-note">${escapeHtml(i.note)}</div>` : ''}
+                </div>
+                <button class="item-del" data-id="${i.id}">×</button>
+              </div>
+            `).join('')}
+          `).join('') : '<div class="empty">Noch keine Programmpunkte.</div>'}
+        </div>
+        <button class="btn btn-ghost" id="addItemBtn" style="margin-top:14px;width:100%;">+ Programmpunkt</button>
+      </div>
+    `;
+
+    document.getElementById('editHotelBtn').onclick = () => openEditHotelModal(stop);
+    document.getElementById('delStopBtn').onclick = () => confirmDeleteStop(stop);
+    document.getElementById('addItemBtn').onclick = () => openAddItemModal(stop);
+    area.querySelectorAll('.item-del').forEach(btn => {
+      btn.onclick = () => {
+        stop.itinerary = stop.itinerary.filter(i => i.id !== btn.dataset.id);
+        saveState(); render();
+      };
+    });
+  }
+
+  function escapeHtml(str){
+    const d = document.createElement('div');
+    d.textContent = str == null ? '' : str;
+    return d.innerHTML;
+  }
+
+  /* ---- Modals ---- */
+  function closeModal(){ document.getElementById('modalRoot').innerHTML = ''; }
+
+  function openAddStopModal(){
+    const root = document.getElementById('modalRoot');
+    root.innerHTML = `
+      <div class="modal-backdrop" id="backdrop">
+        <div class="modal">
+          <h3>Neue Station</h3>
+          <div class="modal-field"><label>Stadt</label><input id="f_city" placeholder="z.B. Yogyakarta"></div>
+          <div class="modal-field"><label>Land</label><input id="f_country" placeholder="z.B. Indonesien"></div>
+          <div class="modal-field"><label>Anreise</label><input id="f_checkin" type="date"></div>
+          <div class="modal-field"><label>Abreise</label><input id="f_checkout" type="date"></div>
+          <div class="modal-actions">
+            <button class="btn btn-ghost" id="cancelBtn">Abbrechen</button>
+            <button class="btn btn-gold" id="saveBtn">Hinzufügen</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('backdrop').onclick = (e)=>{ if(e.target.id==='backdrop') closeModal(); };
+    document.getElementById('cancelBtn').onclick = closeModal;
+    document.getElementById('saveBtn').onclick = () => {
+      const newStop = {
+        id: uid(),
+        city: document.getElementById('f_city').value.trim(),
+        country: document.getElementById('f_country').value.trim(),
+        checkIn: document.getElementById('f_checkin').value,
+        checkOut: document.getElementById('f_checkout').value,
+        hotelName:'', address:'', phone:'', contactPerson:'', notes:'',
+        itinerary: []
+      };
+      if(!newStop.city){ return; }
+      state.stops.push(newStop);
+      activeStopId = newStop.id;
+      saveState(); render(); closeModal();
+    };
+  }
+
+  function openEditHotelModal(stop){
+    const root = document.getElementById('modalRoot');
+    root.innerHTML = `
+      <div class="modal-backdrop" id="backdrop">
+        <div class="modal">
+          <h3>Unterkunft bearbeiten</h3>
+          <div class="modal-field"><label>Hotelname</label><input id="f_hotel" value="${escapeHtml(stop.hotelName)}"></div>
+          <div class="modal-field"><label>Adresse</label><input id="f_addr" value="${escapeHtml(stop.address)}"></div>
+          <div class="modal-field"><label>Telefon</label><input id="f_phone" value="${escapeHtml(stop.phone)}"></div>
+          <div class="modal-field"><label>Ansprechpartner</label><input id="f_contact" value="${escapeHtml(stop.contactPerson)}"></div>
+          <div class="modal-field"><label>Notizen</label><textarea id="f_notes" rows="3">${escapeHtml(stop.notes)}</textarea></div>
+          <div class="modal-actions">
+            <button class="btn btn-ghost" id="cancelBtn">Abbrechen</button>
+            <button class="btn btn-gold" id="saveBtn">Speichern</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('backdrop').onclick = (e)=>{ if(e.target.id==='backdrop') closeModal(); };
+    document.getElementById('cancelBtn').onclick = closeModal;
+    document.getElementById('saveBtn').onclick = () => {
+      stop.hotelName = document.getElementById('f_hotel').value.trim();
+      stop.address = document.getElementById('f_addr').value.trim();
+      stop.phone = document.getElementById('f_phone').value.trim();
+      stop.contactPerson = document.getElementById('f_contact').value.trim();
+      stop.notes = document.getElementById('f_notes').value.trim();
+      saveState(); render(); closeModal();
+    };
+  }
+
+  function openAddItemModal(stop){
+    const root = document.getElementById('modalRoot');
+    root.innerHTML = `
+      <div class="modal-backdrop" id="backdrop">
+        <div class="modal">
+          <h3>Programmpunkt hinzufügen</h3>
+          <div class="modal-field"><label>Tag (frei, z.B. "Do 17.9.")</label><input id="f_date" placeholder="Do 17.9."></div>
+          <div class="modal-field"><label>Uhrzeit</label><input id="f_time" placeholder="9:00"></div>
+          <div class="modal-field"><label>Titel</label><input id="f_title" placeholder="z.B. Frühstück im Hotel"></div>
+          <div class="modal-field"><label>Notiz (optional)</label><input id="f_note" placeholder=""></div>
+          <div class="modal-actions">
+            <button class="btn btn-ghost" id="cancelBtn">Abbrechen</button>
+            <button class="btn btn-gold" id="saveBtn">Hinzufügen</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('backdrop').onclick = (e)=>{ if(e.target.id==='backdrop') closeModal(); };
+    document.getElementById('cancelBtn').onclick = closeModal;
+    document.getElementById('saveBtn').onclick = () => {
+      const title = document.getElementById('f_title').value.trim();
+      if(!title) return;
+      stop.itinerary.push({
+        id: uid(),
+        date: document.getElementById('f_date').value.trim() || 'Ohne Datum',
+        time: document.getElementById('f_time').value.trim(),
+        title,
+        note: document.getElementById('f_note').value.trim()
+      });
+      saveState(); render(); closeModal();
+    };
+  }
+
+  function confirmDeleteStop(stop){
+    const root = document.getElementById('modalRoot');
+    root.innerHTML = `
+      <div class="modal-backdrop" id="backdrop">
+        <div class="modal">
+          <h3>Station löschen?</h3>
+          <p style="color:var(--text-dim);font-size:13.5px;">„${escapeHtml(stop.city)}" wird inklusive Tagesplan entfernt. Das lässt sich nicht rückgängig machen.</p>
+          <div class="modal-actions">
+            <button class="btn btn-ghost" id="cancelBtn">Abbrechen</button>
+            <button class="btn btn-danger" id="delBtn">Löschen</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('backdrop').onclick = (e)=>{ if(e.target.id==='backdrop') closeModal(); };
+    document.getElementById('cancelBtn').onclick = closeModal;
+    document.getElementById('delBtn').onclick = () => {
+      state.stops = state.stops.filter(s => s.id !== stop.id);
+      activeStopId = state.stops[0] ? state.stops[0].id : null;
+      saveState(); render(); closeModal();
+    };
+  }
+
+  document.getElementById('addStopFab').onclick = openAddStopModal;
+
+  if (window.db) { initAuthGate(); } else { window.addEventListener('firebaseReady', initAuthGate); }
+})();
+</script>
+</body>
+</html>
