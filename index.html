@@ -201,7 +201,7 @@
     min-width: 42px;
     padding-top: 1px;
   }
-  .item-body { flex:1; }
+  .item-body { flex:1; cursor: pointer; }
   .item-title { font-size: 14px; font-weight: 500; }
   .item-note { font-size: 12px; color: var(--text-dim); margin-top: 1px; }
   .item-del {
@@ -793,7 +793,7 @@
             ${sortByKey(stop.itinerary.filter(i=>i.date===d), i => timeKey(i.time)).map(i => `
               <div class="item">
                 <div class="item-time">${escapeHtml(i.time||'')}</div>
-                <div class="item-body">
+                <div class="item-body" data-id="${i.id}">
                   <div class="item-title">${escapeHtml(i.title)}</div>
                   ${i.note ? `<div class="item-note">${escapeHtml(i.note)}</div>` : ''}
                 </div>
@@ -808,9 +808,16 @@
 
     document.getElementById('editHotelBtn').onclick = () => openEditHotelModal(stop);
     document.getElementById('delStopBtn').onclick = () => confirmDeleteStop(stop);
-    document.getElementById('addItemBtn').onclick = () => openAddItemModal(stop);
+    document.getElementById('addItemBtn').onclick = () => openItemModal(stop);
+    area.querySelectorAll('.item-body').forEach(el => {
+      el.onclick = () => {
+        const item = stop.itinerary.find(i => i.id === el.dataset.id);
+        if(item) openItemModal(stop, item);
+      };
+    });
     area.querySelectorAll('.item-del').forEach(btn => {
-      btn.onclick = () => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
         stop.itinerary = stop.itinerary.filter(i => i.id !== btn.dataset.id);
         saveState(); render();
       };
@@ -892,35 +899,44 @@
     };
   }
 
-  function openAddItemModal(stop){
+  function openItemModal(stop, item){
+    const isEdit = !!item;
     const root = document.getElementById('modalRoot');
     root.innerHTML = `
       <div class="modal-backdrop" id="backdrop">
         <div class="modal">
-          <h3>Programmpunkt hinzuf√ºgen</h3>
-          <div class="modal-field"><label>Tag (frei, z.B. "Do 17.9.")</label><input id="f_date" placeholder="Do 17.9."></div>
-          <div class="modal-field"><label>Uhrzeit</label><input id="f_time" placeholder="9:00"></div>
-          <div class="modal-field"><label>Titel</label><input id="f_title" placeholder="z.B. Fr√ºhst√ºck im Hotel"></div>
-          <div class="modal-field"><label>Notiz (optional)</label><input id="f_note" placeholder=""></div>
+          <h3>${isEdit ? 'Programmpunkt bearbeiten' : 'Programmpunkt hinzuf√ºgen'}</h3>
+          <div class="modal-field"><label>Tag (frei, z.B. "Do 17.9.")</label><input id="f_date" placeholder="Do 17.9." value="${isEdit ? escapeHtml(item.date) : ''}"></div>
+          <div class="modal-field"><label>Uhrzeit</label><input id="f_time" placeholder="9:00" value="${isEdit ? escapeHtml(item.time) : ''}"></div>
+          <div class="modal-field"><label>Titel</label><input id="f_title" placeholder="z.B. Fr√ºhst√ºck im Hotel" value="${isEdit ? escapeHtml(item.title) : ''}"></div>
+          <div class="modal-field"><label>Notiz (optional)</label><input id="f_note" placeholder="" value="${isEdit ? escapeHtml(item.note) : ''}"></div>
           <div class="modal-actions">
+            ${isEdit ? '<button class="btn btn-danger" id="delItemBtn">L√∂schen</button>' : ''}
             <button class="btn btn-ghost" id="cancelBtn">Abbrechen</button>
-            <button class="btn btn-gold" id="saveBtn">Hinzuf√ºgen</button>
+            <button class="btn btn-gold" id="saveBtn">${isEdit ? 'Speichern' : 'Hinzuf√ºgen'}</button>
           </div>
         </div>
       </div>
     `;
     document.getElementById('backdrop').onclick = (e)=>{ if(e.target.id==='backdrop') closeModal(); };
     document.getElementById('cancelBtn').onclick = closeModal;
+    if(isEdit){
+      document.getElementById('delItemBtn').onclick = () => {
+        stop.itinerary = stop.itinerary.filter(i => i.id !== item.id);
+        saveState(); render(); closeModal();
+      };
+    }
     document.getElementById('saveBtn').onclick = () => {
       const title = document.getElementById('f_title').value.trim();
       if(!title) return;
-      stop.itinerary.push({
-        id: uid(),
-        date: document.getElementById('f_date').value.trim() || 'Ohne Datum',
-        time: document.getElementById('f_time').value.trim(),
-        title,
-        note: document.getElementById('f_note').value.trim()
-      });
+      const date = document.getElementById('f_date').value.trim() || 'Ohne Datum';
+      const time = document.getElementById('f_time').value.trim();
+      const note = document.getElementById('f_note').value.trim();
+      if(isEdit){
+        item.date = date; item.time = time; item.title = title; item.note = note;
+      } else {
+        stop.itinerary.push({ id: uid(), date, time, title, note });
+      }
       saveState(); render(); closeModal();
     };
   }
