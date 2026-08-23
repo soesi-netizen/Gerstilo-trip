@@ -418,7 +418,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   // Firebase-Config für "Gerstilo Trip"
@@ -435,6 +435,7 @@
   window.db = getFirestore(app);
   window.doc = doc;
   window.setDoc = setDoc;
+  window.runTransaction = runTransaction;
   window.onSnapshot = onSnapshot;
   window.auth = getAuth(app);
   window.googleProvider = new GoogleAuthProvider();
@@ -514,7 +515,7 @@
 
   function uid(){ return Math.random().toString(36).slice(2,9); }
 
-  const ALLOWED_EMAILS = ['christinesoesilo@gmail.com', 'flo12055@gmail.com'];
+  const ALLOWED_EMAILS = ['christine.soesilo@gmail.com', 'flo12055@gmail.com'];
 
   function showAuthScreen(){
     document.getElementById('authScreen').style.display = 'flex';
@@ -602,7 +603,13 @@
 
   async function saveState(){
     try {
-      await window.setDoc(window.tripDocRef, state);
+      const localState = state;
+      await window.runTransaction(window.db, async (tx) => {
+        const snap = await tx.get(window.tripDocRef);
+        const fresh = snap.exists() ? snap.data() : {};
+        const merged = Object.assign({}, fresh, localState);
+        tx.set(window.tripDocRef, merged);
+      });
       setStatus('Gespeichert ✓', true);
     } catch(e) {
       console.error(e);
