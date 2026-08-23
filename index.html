@@ -203,6 +203,7 @@
   }
   .item-body { flex:1; cursor: pointer; }
   .item-title { font-size: 14px; font-weight: 500; }
+  .item-title a { color: var(--text); text-decoration: none; border-bottom: 1.5px solid var(--gold); }
   .item-note { font-size: 12px; color: var(--text-dim); margin-top: 1px; }
   .item-del {
     background:none; border:none; color: var(--text-dim); opacity:0.5;
@@ -372,18 +373,18 @@
 <div id="authScreen" class="auth-screen">
   <div class="auth-card" id="authCard">
     <p class="eyebrow">Reise-Begleiter</p>
-    <h2>Anmeldung n√∂tig</h2>
-    <p class="auth-sub">Nur f√ºr euch zwei ‚Äî meldet euch mit Google an.</p>
+    <h2>Anmeldung nötig</h2>
+    <p class="auth-sub">Nur für euch zwei — meldet euch mit Google an.</p>
     <button class="btn btn-gold" id="googleSignInBtn" style="width:100%;padding:13px;">Mit Google anmelden</button>
   </div>
 </div>
 
 <div class="app" id="app" style="display:none;">
   <header>
-    <p class="eyebrow" id="tripEyebrow">Reiseroute ¬∑ Sept 2026</p>
-    <h1 id="tripTitle">Singapur ‚Üí Indonesien</h1>
+    <p class="eyebrow" id="tripEyebrow">Reiseroute · Sept 2026</p>
+    <h1 id="tripTitle">Singapur → Indonesien</h1>
     <div class="countdown" id="countdown"></div>
-    <p class="sub">Tippt eine Station an f√ºr Hotel, Kontakt & Plan ¬∑ geteilter Stand f√ºr euch beide</p>
+    <p class="sub">Tippt eine Station an für Hotel, Kontakt & Plan · geteilter Stand für euch beide</p>
   </header>
 
   <div class="route-strip" id="routeStrip"></div>
@@ -393,7 +394,7 @@
   <div class="status-banner" id="statusBanner"></div>
 </div>
 
-<button class="fab" id="addStopFab">+ Station hinzuf√ºgen</button>
+<button class="fab" id="addStopFab">+ Station hinzufügen</button>
 
 <div id="modalRoot"></div>
 
@@ -402,7 +403,7 @@
   import { getFirestore, doc, setDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-  // Firebase-Config f√ºr "Gerstilo Trip"
+  // Firebase-Config für "Gerstilo Trip"
   const firebaseConfig = {
     apiKey: "AIzaSyCow2gRrkJCsRBFi9RBKbZk2Z3vjRA8w-U",
     authDomain: "gerstilo-trip.firebaseapp.com",
@@ -432,7 +433,7 @@
   let activeStopId = null;
 
   const defaultData = () => ({
-    tripName: "Singapur ‚Üí Indonesien",
+    tripName: "Singapur → Indonesien",
     stops: [
       {
         id: 'sg-1',
@@ -449,14 +450,14 @@
           {id:'i1', date:'Sa 12.9.', time:'16:30', title:'Ankunft Flughafen Changi', note:''},
           {id:'i2', date:'Sa 12.9.', time:'18:00', title:'Check-in Hotel', note:''},
           {id:'i3', date:'Sa 12.9.', time:'19:00', title:'Chinatown Complex Food Centre', note:'Dumplings, Congee, Hawker Chan'},
-          {id:'i4', date:'Sa 12.9.', time:'20:45', title:'Gardens by the Bay ‚Äì Garden Rhapsody', note:'Lichtshow an den Supertrees'},
+          {id:'i4', date:'Sa 12.9.', time:'20:45', title:'Gardens by the Bay – Garden Rhapsody', note:'Lichtshow an den Supertrees'},
           {id:'i5', date:'So 13.9.', time:'8:00', title:'Leihrad abholen', note:'Anywheel / HelloRide App'},
-          {id:'i6', date:'So 13.9.', time:'8:30', title:'Fr√ºhst√ºck: Tiong Bahru Market', note:'Jian Bo Shui Kueh, Koh Brothers'},
+          {id:'i6', date:'So 13.9.', time:'8:30', title:'Frühstück: Tiong Bahru Market', note:'Jian Bo Shui Kueh, Koh Brothers'},
           {id:'i7', date:'So 13.9.', time:'10:30', title:'Asian Civilisations Museum', note:''},
           {id:'i8', date:'So 13.9.', time:'12:30', title:'Mittagessen: Lau Pa Sat', note:''},
-          {id:'i9', date:'So 13.9.', time:'16:00', title:'Marina Bay Sands SkyPark', note:'+ C√â LA VI Rooftop'},
-          {id:'i10', date:'So 13.9.', time:'19:00', title:'Abendessen: The Coconut Club', note:'Nasi Lemak, Satay ‚Äì Taxi empfohlen'},
-          {id:'i11', date:'Mo 14.9.', time:'7:15', title:'Fr√ºhst√ºck: Ya Kun Kaya Toast', note:'Far East Square'},
+          {id:'i9', date:'So 13.9.', time:'16:00', title:'Marina Bay Sands SkyPark', note:'+ CÉ LA VI Rooftop'},
+          {id:'i10', date:'So 13.9.', time:'19:00', title:'Abendessen: The Coconut Club', note:'Nasi Lemak, Satay – Taxi empfohlen'},
+          {id:'i11', date:'Mo 14.9.', time:'7:15', title:'Frühstück: Ya Kun Kaya Toast', note:'Far East Square'},
           {id:'i12', date:'Mo 14.9.', time:'8:00', title:'Abfahrt Richtung Mandai', note:'~45 Min'},
           {id:'i13', date:'Mo 14.9.', time:'9:00', title:'Bird Paradise', note:''},
           {id:'i14', date:'Mo 14.9.', time:'12:30', title:'Lunch in the Wild: Crimson Restaurant', note:'Vorab reserviert!'},
@@ -464,17 +465,17 @@
           {id:'i16', date:'Mo 14.9.', time:'17:30', title:'Abendessen: Ah Meng Restaurant', note:''},
           {id:'i17', date:'Mo 14.9.', time:'19:30', title:'Night Safari', note:'Zeitfenster vorab gebucht'},
           {id:'i18', date:'Di 15.9.', time:'6:00', title:'Morgenlauf: Marina Bay Loop', note:'~3,5 km, Recovery'},
-          {id:'i19', date:'Di 15.9.', time:'8:30', title:'Fr√ºhst√ºck: Tekka Centre', note:'Briyani / Duck Rice'},
+          {id:'i19', date:'Di 15.9.', time:'8:30', title:'Frühstück: Tekka Centre', note:'Briyani / Duck Rice'},
           {id:'i20', date:'Di 15.9.', time:'10:30', title:'Schmuck-Browsing Little India', note:''},
           {id:'i21', date:'Di 15.9.', time:'12:00', title:'Newton Food Centre', note:'Oyster Omelette, Chili Crab'},
           {id:'i22', date:'Di 15.9.', time:'15:00', title:'Singapore Botanic Gardens', note:''},
           {id:'i23', date:'Di 15.9.', time:'19:30', title:'Candlenut', note:'Vorab reserviert!'},
           {id:'i24', date:'Mi 16.9.', time:'6:00', title:'Morgenlauf', note:'~3,5 km, kurz gehalten'},
-          {id:'i25', date:'Mi 16.9.', time:'7:15', title:'Fr√ºhst√ºck: Maxwell Food Centre', note:'Tian Tian Chicken Rice, Oyster Cake'},
+          {id:'i25', date:'Mi 16.9.', time:'7:15', title:'Frühstück: Maxwell Food Centre', note:'Tian Tian Chicken Rice, Oyster Cake'},
           {id:'i26', date:'Mi 16.9.', time:'10:00', title:'Raffles City Shopping Centre', note:'Charles & Keith, Pedro, TWG Tea'},
           {id:'i27', date:'Mi 16.9.', time:'11:00', title:'Raffles Hotel Long Bar', note:'Singapore Sling'},
           {id:'i28', date:'Mi 16.9.', time:'11:45', title:'Haji Lane & Arab Street', note:''},
-          {id:'i29', date:'Mi 16.9.', time:'12:45', title:'Zur√ºck zum Hotel, Packen', note:''},
+          {id:'i29', date:'Mi 16.9.', time:'12:45', title:'Zurück zum Hotel, Packen', note:''},
           {id:'i30', date:'Mi 16.9.', time:'14:00', title:'Richtung Flughafen', note:'Flug 17:00 nach Surabaya'}
         ]
       },
@@ -509,8 +510,8 @@
   function renderLoginDefault(){
     document.getElementById('authCard').innerHTML = `
       <p class="eyebrow">Reise-Begleiter</p>
-      <h2>Anmeldung n√∂tig</h2>
-      <p class="auth-sub">Nur f√ºr euch zwei ‚Äî meldet euch mit Google an.</p>
+      <h2>Anmeldung nötig</h2>
+      <p class="auth-sub">Nur für euch zwei — meldet euch mit Google an.</p>
       <button class="btn btn-gold" id="googleSignInBtn" style="width:100%;padding:13px;">Mit Google anmelden</button>
     `;
     document.getElementById('googleSignInBtn').onclick = () => {
@@ -523,8 +524,8 @@
     document.getElementById('authCard').innerHTML = `
       <p class="eyebrow">Reise-Begleiter</p>
       <h2>Kein Zugriff</h2>
-      <p class="auth-denied">${escapeHtml(email)} ist nicht f√ºr diese Reise freigeschaltet.</p>
-      <button class="btn btn-ghost" id="signOutBtn" style="width:100%;padding:13px;">Abmelden & anderes Konto w√§hlen</button>
+      <p class="auth-denied">${escapeHtml(email)} ist nicht für diese Reise freigeschaltet.</p>
+      <button class="btn btn-ghost" id="signOutBtn" style="width:100%;padding:13px;">Abmelden & anderes Konto wählen</button>
     `;
     document.getElementById('signOutBtn').onclick = () => window.signOut(window.auth);
   }
@@ -575,15 +576,15 @@
       if(!state.tripEndDate){ state.tripEndDate = '2026-10-03'; needsMigrationSave = true; }
       render();
       if(needsFlightImport()){
-        // Flug-/Bahndaten werden automatisch √ºbernommen, keine Best√§tigung n√∂tig
+        // Flug-/Bahndaten werden automatisch übernommen, keine Bestätigung nötig
         importFlightData();
       } else if(needsMigrationSave){
         saveState();
       }
-      setStatus('Live-Sync aktiv ‚úì', true);
+      setStatus('Live-Sync aktiv ✓', true);
     }, (err) => {
       console.error(err);
-      setStatus('Verbindung fehlgeschlagen ‚Äî Firebase-Config pr√ºfen', false);
+      setStatus('Verbindung fehlgeschlagen — Firebase-Config prüfen', false);
       if(!state){ state = defaultData(); activeStopId = state.stops[0].id; render(); }
     });
   }
@@ -602,7 +603,7 @@
         const merged = Object.assign({}, fresh, localState);
         tx.set(window.tripDocRef, merged);
       });
-      setStatus('Gespeichert ‚úì', true);
+      setStatus('Gespeichert ✓', true);
     } catch(e) {
       console.error(e);
       setStatus('Speichern fehlgeschlagen', false);
@@ -621,16 +622,16 @@
   /* ---- Flugdaten-Import (einmalig) ---- */
   const flightImportData = {
     sgAdd: [
-      {id:'flt1', date:'Fr 11.9.', time:'14:05', title:'Zug: Berlin-Pankow ‚Üí Flughafen BER', note:'S2 bis Potsdamer Platz, dann FEX (Ankunft 14:45)'},
-      {id:'flt2', date:'Fr 11.9.', time:'17:45', title:'Flug: Berlin (BER) ‚Üí Frankfurt (FRA)', note:'Operated by Lufthansa, Ankunft 18:55'},
-      {id:'flt3', date:'Fr 11.9.', time:'21:40', title:'Flug: Frankfurt (FRA) ‚Üí Singapur (SIN)', note:'SQ 325, Ankunft Sa 16:20 Uhr'},
-      {id:'flt4', date:'Mi 16.9.', time:'16:55', title:'Flug: Singapur (SIN) ‚Üí Surabaya (SUB)', note:'SQ 928, Terminal 2, Ankunft 18:20'}
+      {id:'flt1', date:'Fr 11.9.', time:'14:05', title:'Zug: Berlin-Pankow → Flughafen BER', note:'S2 bis Potsdamer Platz, dann FEX (Ankunft 14:45)'},
+      {id:'flt2', date:'Fr 11.9.', time:'17:45', title:'Flug: Berlin (BER) → Frankfurt (FRA)', note:'Operated by Lufthansa, Ankunft 18:55'},
+      {id:'flt3', date:'Fr 11.9.', time:'21:40', title:'Flug: Frankfurt (FRA) → Singapur (SIN)', note:'SQ 325, Ankunft Sa 16:20 Uhr'},
+      {id:'flt4', date:'Mi 16.9.', time:'16:55', title:'Flug: Singapur (SIN) → Surabaya (SUB)', note:'SQ 928, Terminal 2, Ankunft 18:20'}
     ],
     subAdd: [
       {id:'flt5', date:'Mi 16.9.', time:'18:20', title:'Ankunft Surabaya (Juanda Intl)', note:'SQ 928 aus Singapur, Terminal 2'},
-      {id:'flt6', date:'Fr 2.10.', time:'19:15', title:'Flug: Surabaya (SUB) ‚Üí Singapur (SIN)', note:'SQ 929, Terminal 2, Ankunft 22:45'},
-      {id:'flt7', date:'Fr 2.10.', time:'23:55', title:'Flug: Singapur (SIN) ‚Üí Frankfurt (FRA)', note:'SQ 26, Terminal 3, Ankunft Sa 07:05'},
-      {id:'flt8', date:'Sa 3.10.', time:'09:45', title:'Flug: Frankfurt (FRA) ‚Üí Berlin (BER)', note:'Operated by Lufthansa, Ankunft 10:55'}
+      {id:'flt6', date:'Fr 2.10.', time:'19:15', title:'Flug: Surabaya (SUB) → Singapur (SIN)', note:'SQ 929, Terminal 2, Ankunft 22:45'},
+      {id:'flt7', date:'Fr 2.10.', time:'23:55', title:'Flug: Singapur (SIN) → Frankfurt (FRA)', note:'SQ 26, Terminal 3, Ankunft Sa 07:05'},
+      {id:'flt8', date:'Sa 3.10.', time:'09:45', title:'Flug: Frankfurt (FRA) → Berlin (BER)', note:'Operated by Lufthansa, Ankunft 10:55'}
     ]
   };
 
@@ -667,17 +668,24 @@
   function fmtRange(a,b){
     if(!a && !b) return 'Daten offen';
     const f = (d) => d ? d.slice(8,10)+'.'+d.slice(5,7)+'.' : '?';
-    return f(a) + (b ? ' ‚Äì '+f(b) : '');
+    return f(a) + (b ? ' – '+f(b) : '');
   }
 
-  // Sortierschl√ºssel aus freiem Datumstext wie "Fr 11.9." oder "Sa 3.10." (Tag.Monat)
+  // Ergänzt https:// falls beim Link kein Protokoll angegeben wurde
+  function normalizeUrl(url){
+    const u = (url || '').trim();
+    if(!u) return '';
+    return /^https?:\/\//i.test(u) ? u : 'https://' + u;
+  }
+
+  // Sortierschlüssel aus freiem Datumstext wie "Fr 11.9." oder "Sa 3.10." (Tag.Monat)
   function dayKey(dateStr){
     const m = /(\d{1,2})\.(\d{1,2})\.?/.exec(dateStr || '');
     if(!m) return null;
     return parseInt(m[2],10) * 100 + parseInt(m[1],10); // Monat, dann Tag
   }
 
-  // Sortierschl√ºssel aus Uhrzeit wie "16:55" oder "9:00"
+  // Sortierschlüssel aus Uhrzeit wie "16:55" oder "9:00"
   function timeKey(timeStr){
     const m = /^(\d{1,2}):(\d{2})$/.exec((timeStr || '').trim());
     if(!m) return null;
@@ -685,7 +693,7 @@
   }
 
   function sortByKey(arr, keyFn){
-    // stabiler Sort: Eintr√§ge ohne erkennbaren Schl√ºssel bleiben an ihrer relativen Position, aber ans Ende
+    // stabiler Sort: Einträge ohne erkennbaren Schlüssel bleiben an ihrer relativen Position, aber ans Ende
     return arr
       .map((item, i) => ({ item, i, key: keyFn(item) }))
       .sort((a, b) => {
@@ -720,9 +728,9 @@
     } else if(now <= end){
       const days = Math.ceil((end - now) / dayMs);
       num = days;
-      label = 'Reise l√§uft ‚úà ¬∑ noch ' + days + (days === 1 ? ' Tag' : ' Tage') + ' bis daheim';
+      label = 'Reise läuft ✈ · noch ' + days + (days === 1 ? ' Tag' : ' Tage') + ' bis daheim';
     } else {
-      num = '‚úì';
+      num = '✓';
       label = 'Reise beendet';
     }
     el.innerHTML = `<div class="countdown-num">${num}</div><div class="countdown-label">${label}</div>`;
@@ -752,7 +760,7 @@
   function renderDetail(){
     const area = document.getElementById('detailArea');
     const stop = state.stops.find(s => s.id === activeStopId);
-    if(!stop){ area.innerHTML = '<div class="empty">Noch keine Station angelegt.<br>Tippt auf ‚Äû+ Station hinzuf√ºgen".</div>'; return; }
+    if(!stop){ area.innerHTML = '<div class="empty">Noch keine Station angelegt.<br>Tippt auf „+ Station hinzufügen".</div>'; return; }
 
     const days = sortByKey([...new Set(stop.itinerary.map(i=>i.date))], dayKey);
 
@@ -763,19 +771,19 @@
           <button class="edit-btn" id="editHotelBtn">Bearbeiten</button>
         </div>
         <div class="ticket">
-          <div class="hotel-name">${stop.hotelName ? escapeHtml(stop.hotelName) : '‚Äî noch kein Hotel hinterlegt ‚Äî'}</div>
+          <div class="hotel-name">${stop.hotelName ? escapeHtml(stop.hotelName) : '— noch kein Hotel hinterlegt —'}</div>
           <div class="field">
             <div class="field-label">Adresse</div>
-            <div class="field-value">${stop.address ? `<a href="https://maps.google.com/?q=${encodeURIComponent(stop.address)}" target="_blank">${escapeHtml(stop.address)}</a>` : '‚Äì'}</div>
+            <div class="field-value">${stop.address ? `<a href="https://maps.google.com/?q=${encodeURIComponent(stop.address)}" target="_blank">${escapeHtml(stop.address)}</a>` : '–'}</div>
           </div>
           <div class="field-row">
             <div class="field">
               <div class="field-label">Telefon</div>
-              <div class="field-value">${stop.phone ? `<a href="tel:${stop.phone.replace(/\s/g,'')}">${escapeHtml(stop.phone)}</a>` : '‚Äì'}</div>
+              <div class="field-value">${stop.phone ? `<a href="tel:${stop.phone.replace(/\s/g,'')}">${escapeHtml(stop.phone)}</a>` : '–'}</div>
             </div>
             <div class="field">
               <div class="field-label">Ansprechpartner</div>
-              <div class="field-value">${stop.contactPerson ? escapeHtml(stop.contactPerson) : '‚Äì'}</div>
+              <div class="field-value">${stop.contactPerson ? escapeHtml(stop.contactPerson) : '–'}</div>
             </div>
           </div>
           ${stop.notes ? `<hr class="divider-dash"><div class="notes-text">${escapeHtml(stop.notes)}</div>` : ''}
@@ -785,7 +793,7 @@
       <div class="panel">
         <div class="panel-title">
           <span>Tagesplan</span>
-          <button class="edit-btn" id="delStopBtn" style="color:var(--coral)">Station l√∂schen</button>
+          <button class="edit-btn" id="delStopBtn" style="color:var(--coral)">Station löschen</button>
         </div>
         <div id="itineraryList">
           ${days.length ? days.map(d => `
@@ -794,10 +802,10 @@
               <div class="item">
                 <div class="item-time">${escapeHtml(i.time||'')}</div>
                 <div class="item-body" data-id="${i.id}">
-                  <div class="item-title">${escapeHtml(i.title)}</div>
+                  <div class="item-title">${i.link ? `<a href="${escapeHtml(normalizeUrl(i.link))}" target="_blank" rel="noopener">${escapeHtml(i.title)}</a>` : escapeHtml(i.title)}</div>
                   ${i.note ? `<div class="item-note">${escapeHtml(i.note)}</div>` : ''}
                 </div>
-                <button class="item-del" data-id="${i.id}">√ó</button>
+                <button class="item-del" data-id="${i.id}">×</button>
               </div>
             `).join('')}
           `).join('') : '<div class="empty">Noch keine Programmpunkte.</div>'}
@@ -810,7 +818,8 @@
     document.getElementById('delStopBtn').onclick = () => confirmDeleteStop(stop);
     document.getElementById('addItemBtn').onclick = () => openItemModal(stop);
     area.querySelectorAll('.item-body').forEach(el => {
-      el.onclick = () => {
+      el.onclick = (e) => {
+        if(e.target.closest('a')) return; // Link direkt öffnen lassen statt Bearbeiten-Modal
         const item = stop.itinerary.find(i => i.id === el.dataset.id);
         if(item) openItemModal(stop, item);
       };
@@ -845,7 +854,7 @@
           <div class="modal-field"><label>Abreise</label><input id="f_checkout" type="date"></div>
           <div class="modal-actions">
             <button class="btn btn-ghost" id="cancelBtn">Abbrechen</button>
-            <button class="btn btn-gold" id="saveBtn">Hinzuf√ºgen</button>
+            <button class="btn btn-gold" id="saveBtn">Hinzufügen</button>
           </div>
         </div>
       </div>
@@ -905,15 +914,16 @@
     root.innerHTML = `
       <div class="modal-backdrop" id="backdrop">
         <div class="modal">
-          <h3>${isEdit ? 'Programmpunkt bearbeiten' : 'Programmpunkt hinzuf√ºgen'}</h3>
+          <h3>${isEdit ? 'Programmpunkt bearbeiten' : 'Programmpunkt hinzufügen'}</h3>
           <div class="modal-field"><label>Tag (frei, z.B. "Do 17.9.")</label><input id="f_date" placeholder="Do 17.9." value="${isEdit ? escapeHtml(item.date) : ''}"></div>
           <div class="modal-field"><label>Uhrzeit</label><input id="f_time" placeholder="9:00" value="${isEdit ? escapeHtml(item.time) : ''}"></div>
-          <div class="modal-field"><label>Titel</label><input id="f_title" placeholder="z.B. Fr√ºhst√ºck im Hotel" value="${isEdit ? escapeHtml(item.title) : ''}"></div>
+          <div class="modal-field"><label>Titel</label><input id="f_title" placeholder="z.B. Frühstück im Hotel" value="${isEdit ? escapeHtml(item.title) : ''}"></div>
+          <div class="modal-field"><label>Link (optional)</label><input id="f_link" placeholder="z.B. Reservierung, Karte, Website" value="${isEdit ? escapeHtml(item.link || '') : ''}"></div>
           <div class="modal-field"><label>Notiz (optional)</label><input id="f_note" placeholder="" value="${isEdit ? escapeHtml(item.note) : ''}"></div>
           <div class="modal-actions">
-            ${isEdit ? '<button class="btn btn-danger" id="delItemBtn">L√∂schen</button>' : ''}
+            ${isEdit ? '<button class="btn btn-danger" id="delItemBtn">Löschen</button>' : ''}
             <button class="btn btn-ghost" id="cancelBtn">Abbrechen</button>
-            <button class="btn btn-gold" id="saveBtn">${isEdit ? 'Speichern' : 'Hinzuf√ºgen'}</button>
+            <button class="btn btn-gold" id="saveBtn">${isEdit ? 'Speichern' : 'Hinzufügen'}</button>
           </div>
         </div>
       </div>
@@ -931,11 +941,12 @@
       if(!title) return;
       const date = document.getElementById('f_date').value.trim() || 'Ohne Datum';
       const time = document.getElementById('f_time').value.trim();
+      const link = document.getElementById('f_link').value.trim();
       const note = document.getElementById('f_note').value.trim();
       if(isEdit){
-        item.date = date; item.time = time; item.title = title; item.note = note;
+        item.date = date; item.time = time; item.title = title; item.link = link; item.note = note;
       } else {
-        stop.itinerary.push({ id: uid(), date, time, title, note });
+        stop.itinerary.push({ id: uid(), date, time, title, link, note });
       }
       saveState(); render(); closeModal();
     };
@@ -946,11 +957,11 @@
     root.innerHTML = `
       <div class="modal-backdrop" id="backdrop">
         <div class="modal">
-          <h3>Station l√∂schen?</h3>
-          <p style="color:var(--text-dim);font-size:13.5px;">‚Äû${escapeHtml(stop.city)}" wird inklusive Tagesplan entfernt. Das l√§sst sich nicht r√ºckg√§ngig machen.</p>
+          <h3>Station löschen?</h3>
+          <p style="color:var(--text-dim);font-size:13.5px;">„${escapeHtml(stop.city)}" wird inklusive Tagesplan entfernt. Das lässt sich nicht rückgängig machen.</p>
           <div class="modal-actions">
             <button class="btn btn-ghost" id="cancelBtn">Abbrechen</button>
-            <button class="btn btn-danger" id="delBtn">L√∂schen</button>
+            <button class="btn btn-danger" id="delBtn">Löschen</button>
           </div>
         </div>
       </div>
@@ -966,7 +977,7 @@
 
   document.getElementById('addStopFab').onclick = openAddStopModal;
 
-  // Z√§hler live halten, auch wenn die Seite √ºber Mitternacht hinaus offen bleibt
+  // Zähler live halten, auch wenn die Seite über Mitternacht hinaus offen bleibt
   setInterval(() => { if(state) renderCountdown(); }, 30 * 60 * 1000);
 
   if (window.db) { initAuthGate(); } else { window.addEventListener('firebaseReady', initAuthGate); }
