@@ -839,7 +839,7 @@
      onReorder(orderedIds, draggedId, newGroup) bekommt die neue Gesamtreihenfolge aller Elemente
      im Container sowie die (ggf. neue) Gruppe des verschobenen Elements. */
   const DRAG_HOLD_MS = 1000; // so lange muss gedrückt/gehalten werden, bevor das Verschieben losgeht
-  const DRAG_HOLD_TOLERANCE = 8; // px Fingerwackeln, das während der Haltezeit toleriert wird
+  const DRAG_HOLD_TOLERANCE = 20; // px Fingerwackeln, das während der Haltezeit toleriert wird (Finger 1s stillhalten ist nie exakt)
 
   function attachDragReorder(container, onReorder){
     let ctx = null;
