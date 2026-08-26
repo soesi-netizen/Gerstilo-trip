@@ -222,7 +222,7 @@
   .drag-handle {
     background: none; border: none; color: var(--text-dim); opacity: 0.45;
     font-size: 14px; line-height: 1; cursor: grab; padding: 4px 2px;
-    touch-action: pan-y; user-select: none; flex: 0 0 auto; align-self: center;
+    touch-action: none; user-select: none; flex: 0 0 auto; align-self: center;
   }
   .drag-handle:active { opacity: 0.9; cursor: grabbing; }
   .dragging { box-shadow: 0 6px 18px rgba(0,0,0,0.35); background: var(--surface-hi); border-radius: 8px; }
@@ -838,8 +838,8 @@
      Gruppe seines neuen Nachbarn.
      onReorder(orderedIds, draggedId, newGroup) bekommt die neue Gesamtreihenfolge aller Elemente
      im Container sowie die (ggf. neue) Gruppe des verschobenen Elements. */
-  const DRAG_HOLD_MS = 1000; // so lange muss gedrückt/gehalten werden, bevor das Verschieben losgeht
-  const DRAG_HOLD_TOLERANCE = 20; // px Fingerwackeln, das während der Haltezeit toleriert wird (Finger 1s stillhalten ist nie exakt)
+  const DRAG_HOLD_MS = 500; // wie bei iOS/Android-Standardgesten: 500ms halten, bevor das Verschieben losgeht
+  const DRAG_HOLD_TOLERANCE = 12; // px Fingerwackeln, das während der Haltezeit toleriert wird
 
   function attachDragReorder(container, onReorder){
     let ctx = null;
