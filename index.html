@@ -19,6 +19,7 @@
     --gold-dim: #9A7A3C;
     --coral: #E8664F;
     --sage: #6FA98E;
+    --transit: #5B9BC4;
     --text: #EDEAE0;
     --text-dim: #93A6AF;
     --radius: 14px;
@@ -211,6 +212,39 @@
   }
   .item-del:active { opacity: 1; }
 
+  .item.transport { border-left: 2px solid var(--transit); margin-left: -12px; padding-left: 10px; }
+  .item.transport .item-time,
+  .item.transport .item-title { color: var(--transit); }
+
+  .drag-handle {
+    background: none; border: none; color: var(--text-dim); opacity: 0.45;
+    font-size: 14px; line-height: 1; cursor: grab; padding: 4px 2px;
+    touch-action: none; user-select: none; flex: 0 0 auto; align-self: center;
+  }
+  .drag-handle:active { opacity: 0.9; cursor: grabbing; }
+  .dragging { box-shadow: 0 6px 18px rgba(0,0,0,0.35); background: var(--surface-hi); border-radius: 8px; }
+
+  .todo-item { display:flex; align-items:center; gap:10px; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .todo-item:last-child { border-bottom: none; }
+  .todo-check {
+    flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%;
+    border: 1.5px solid var(--gold-dim); background: transparent; cursor: pointer;
+    display:flex; align-items:center; justify-content:center; color: var(--gold); font-size: 12px;
+    padding: 0;
+  }
+  .todo-item.done .todo-check { background: var(--gold); border-color: var(--gold); color: #2a1d05; }
+  .todo-body { flex: 1; cursor: pointer; min-width: 0; }
+  .todo-text { font-size: 14px; font-weight: 500; }
+  .todo-item.done .todo-text { text-decoration: line-through; color: var(--text-dim); }
+  .todo-badge { font-family:'IBM Plex Mono', monospace; font-size: 10.5px; margin-top: 2px; }
+  .todo-badge.ready { color: var(--gold); }
+  .todo-badge.future { color: var(--text-dim); }
+  .todo-del {
+    background:none; border:none; color: var(--text-dim); opacity:0.5;
+    font-size: 16px; cursor:pointer; padding: 0 4px; flex: 0 0 auto;
+  }
+  .todo-del:active { opacity: 1; }
+
   .add-item-row {
     display:flex; gap:8px; margin-top: 12px; flex-wrap: wrap;
   }
@@ -387,6 +421,8 @@
     <p class="sub">Tippt eine Station an für Hotel, Kontakt & Plan · geteilter Stand für euch beide</p>
   </header>
 
+  <div id="todoArea"></div>
+
   <div class="route-strip" id="routeStrip"></div>
 
   <div id="detailArea"></div>
@@ -434,6 +470,7 @@
 
   const defaultData = () => ({
     tripName: "Singapur → Indonesien",
+    todos: [],
     stops: [
       {
         id: 'sg-1',
@@ -574,6 +611,7 @@
       let needsMigrationSave = false;
       if(!state.tripStartDate){ state.tripStartDate = '2026-09-11'; needsMigrationSave = true; }
       if(!state.tripEndDate){ state.tripEndDate = '2026-10-03'; needsMigrationSave = true; }
+      if(!state.todos){ state.todos = []; needsMigrationSave = true; }
       render();
       if(needsFlightImport()){
         // Flug-/Bahndaten werden automatisch übernommen, keine Bestätigung nötig
@@ -685,13 +723,6 @@
     return parseInt(m[2],10) * 100 + parseInt(m[1],10); // Monat, dann Tag
   }
 
-  // Sortierschlüssel aus Uhrzeit wie "16:55" oder "9:00"
-  function timeKey(timeStr){
-    const m = /^(\d{1,2}):(\d{2})$/.exec((timeStr || '').trim());
-    if(!m) return null;
-    return parseInt(m[1],10) * 60 + parseInt(m[2],10);
-  }
-
   function sortByKey(arr, keyFn){
     // stabiler Sort: Einträge ohne erkennbaren Schlüssel bleiben an ihrer relativen Position, aber ans Ende
     return arr
@@ -705,9 +736,92 @@
       .map(x => x.item);
   }
 
+  // Heutiges Datum als lokales YYYY-MM-DD (ohne Zeitzonen-Umrechnung)
+  function todayISO(){
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  // Rechnet auf einem YYYY-MM-DD-Datum in reiner Kalendertag-Arithmetik (UTC-basiert, zeitzonensicher)
+  function addDaysISO(iso, deltaDays){
+    const [y,m,d] = iso.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m-1, d));
+    dt.setUTCDate(dt.getUTCDate() + deltaDays);
+    return dt.getUTCFullYear() + '-' + String(dt.getUTCMonth()+1).padStart(2,'0') + '-' + String(dt.getUTCDate()).padStart(2,'0');
+  }
+
+  function fmtDay(iso){
+    return iso ? iso.slice(8,10)+'.'+iso.slice(5,7)+'.' : '?';
+  }
+
+  /* ---- Drag & Drop Neuordnung (Pointer Events, funktioniert mit Maus & Touch) ----
+     Elemente brauchen: [data-drag-item] data-drag-group="<Gruppenschlüssel>" data-drag-id="<id>"
+     und darin einen ".drag-handle" zum Anfassen. onReorder(group, orderedIds) übernimmt die neue Reihenfolge. */
+  function attachDragReorder(container, onReorder){
+    let ctx = null;
+
+    container.querySelectorAll('.drag-handle').forEach(handle => {
+      handle.addEventListener('pointerdown', (e) => onDragStart(e, handle));
+    });
+
+    function onDragStart(e, handle){
+      e.preventDefault();
+      const itemEl = handle.closest('[data-drag-item]');
+      const group = itemEl.dataset.dragGroup;
+      const siblings = Array.from(container.querySelectorAll('[data-drag-item]')).filter(el => el.dataset.dragGroup === group);
+      ctx = {
+        handle, itemEl, siblings, group,
+        itemH: itemEl.getBoundingClientRect().height,
+        startY: e.clientY,
+        curIndex: siblings.indexOf(itemEl),
+        targetIndex: siblings.indexOf(itemEl)
+      };
+      itemEl.classList.add('dragging');
+      handle.setPointerCapture(e.pointerId);
+      handle.addEventListener('pointermove', onDragMove);
+      handle.addEventListener('pointerup', onDragEnd, { once:true });
+      handle.addEventListener('pointercancel', onDragEnd, { once:true });
+    }
+
+    function onDragMove(e){
+      if(!ctx) return;
+      const dy = e.clientY - ctx.startY;
+      ctx.itemEl.style.transform = `translateY(${dy}px)`;
+      const shift = Math.round(dy / ctx.itemH);
+      const newIndex = Math.min(ctx.siblings.length - 1, Math.max(0, ctx.curIndex + shift));
+      if(newIndex !== ctx.targetIndex){
+        ctx.targetIndex = newIndex;
+        ctx.siblings.forEach((el, i) => {
+          if(el === ctx.itemEl) return;
+          let offset = 0;
+          if(ctx.curIndex < newIndex && i > ctx.curIndex && i <= newIndex) offset = -ctx.itemH;
+          else if(ctx.curIndex > newIndex && i < ctx.curIndex && i >= newIndex) offset = ctx.itemH;
+          el.style.transform = offset ? `translateY(${offset}px)` : '';
+          el.style.transition = 'transform 0.15s ease';
+        });
+      }
+    }
+
+    function onDragEnd(e){
+      if(!ctx) return;
+      const { handle, itemEl, siblings, group, curIndex, targetIndex } = ctx;
+      siblings.forEach(el => { el.style.transform=''; el.style.transition=''; });
+      itemEl.classList.remove('dragging');
+      handle.removeEventListener('pointermove', onDragMove);
+      if(targetIndex !== curIndex){
+        const ids = siblings.map(el => el.dataset.dragId);
+        const movedId = ids.splice(curIndex, 1)[0];
+        ids.splice(targetIndex, 0, movedId);
+        onReorder(group, ids);
+      }
+      ctx = null;
+    }
+  }
+
   function render(){
     document.getElementById('tripTitle').textContent = state.tripName;
     renderCountdown();
+    renderTodos();
     renderStrip();
     renderDetail();
   }
@@ -734,6 +848,65 @@
       label = 'Reise beendet';
     }
     el.innerHTML = `<div class="countdown-num">${num}</div><div class="countdown-label">${label}</div>`;
+  }
+
+  function renderTodos(){
+    const el = document.getElementById('todoArea');
+    const todos = state.todos || [];
+    const today = todayISO();
+
+    el.innerHTML = `
+      <div class="panel">
+        <div class="panel-title"><span>To-Do vor der Reise</span></div>
+        ${todos.length ? todos.map(t => {
+          let badge = '';
+          if(!t.done && t.doableFrom){
+            badge = t.doableFrom <= today
+              ? '<div class="todo-badge ready">🔔 Jetzt möglich</div>'
+              : `<div class="todo-badge future">ab ${fmtDay(t.doableFrom)} möglich</div>`;
+          }
+          return `
+            <div class="todo-item ${t.done ? 'done' : ''}" data-drag-item data-drag-group="todos" data-drag-id="${t.id}">
+              <button class="drag-handle" aria-label="Verschieben">⠿</button>
+              <button class="todo-check" data-id="${t.id}">${t.done ? '✓' : ''}</button>
+              <div class="todo-body" data-id="${t.id}">
+                <div class="todo-text">${escapeHtml(t.text)}</div>
+                ${badge}
+              </div>
+              <button class="todo-del" data-id="${t.id}">×</button>
+            </div>
+          `;
+        }).join('') : '<div class="empty" style="padding:12px 0;">Noch keine To-Dos.</div>'}
+        <button class="btn btn-ghost" id="addTodoBtn" style="margin-top:14px;width:100%;">+ To-Do hinzufügen</button>
+      </div>
+    `;
+
+    document.getElementById('addTodoBtn').onclick = () => openTodoModal();
+    el.querySelectorAll('.todo-check').forEach(btn => {
+      btn.onclick = () => {
+        const t = state.todos.find(x => x.id === btn.dataset.id);
+        if(t){ t.done = !t.done; saveState(); render(); }
+      };
+    });
+    el.querySelectorAll('.todo-body').forEach(bodyEl => {
+      bodyEl.onclick = () => {
+        const t = state.todos.find(x => x.id === bodyEl.dataset.id);
+        if(t) openTodoModal(t);
+      };
+    });
+    el.querySelectorAll('.todo-del').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        state.todos = state.todos.filter(t => t.id !== btn.dataset.id);
+        saveState(); render();
+      };
+    });
+
+    attachDragReorder(el, (group, orderedIds) => {
+      const byId = Object.fromEntries(state.todos.map(t => [t.id, t]));
+      state.todos = orderedIds.map(id => byId[id]);
+      saveState(); render();
+    });
   }
 
   function renderStrip(){
@@ -798,8 +971,9 @@
         <div id="itineraryList">
           ${days.length ? days.map(d => `
             <div class="day-label">${escapeHtml(d)}</div>
-            ${sortByKey(stop.itinerary.filter(i=>i.date===d), i => timeKey(i.time)).map(i => `
-              <div class="item">
+            ${stop.itinerary.filter(i=>i.date===d).map(i => `
+              <div class="item${i.isTransport ? ' transport' : ''}" data-drag-item data-drag-group="${escapeHtml(d)}" data-drag-id="${i.id}">
+                <button class="drag-handle" aria-label="Verschieben">⠿</button>
                 <div class="item-time">${escapeHtml(i.time||'')}</div>
                 <div class="item-body" data-id="${i.id}">
                   <div class="item-title">${i.link ? `<a href="${escapeHtml(normalizeUrl(i.link))}" target="_blank" rel="noopener">${escapeHtml(i.title)}</a>` : escapeHtml(i.title)}</div>
@@ -830,6 +1004,14 @@
         stop.itinerary = stop.itinerary.filter(i => i.id !== btn.dataset.id);
         saveState(); render();
       };
+    });
+
+    attachDragReorder(document.getElementById('itineraryList'), (dateGroup, orderedIds) => {
+      const dayItems = stop.itinerary.filter(it => it.date === dateGroup);
+      const byId = Object.fromEntries(dayItems.map(it => [it.id, it]));
+      let idx = 0;
+      stop.itinerary = stop.itinerary.map(it => it.date === dateGroup ? byId[orderedIds[idx++]] : it);
+      saveState(); render();
     });
   }
 
@@ -920,6 +1102,12 @@
           <div class="modal-field"><label>Titel</label><input id="f_title" placeholder="z.B. Frühstück im Hotel" value="${isEdit ? escapeHtml(item.title) : ''}"></div>
           <div class="modal-field"><label>Link (optional)</label><input id="f_link" placeholder="z.B. Reservierung, Karte, Website" value="${isEdit ? escapeHtml(item.link || '') : ''}"></div>
           <div class="modal-field"><label>Notiz (optional)</label><input id="f_note" placeholder="" value="${isEdit ? escapeHtml(item.note) : ''}"></div>
+          <div class="modal-field">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="f_transport" style="width:auto;" ${isEdit && item.isTransport ? 'checked' : ''}>
+              <span>Transport / Transfer (andere Farbe im Tagesplan)</span>
+            </label>
+          </div>
           <div class="modal-actions">
             ${isEdit ? '<button class="btn btn-danger" id="delItemBtn">Löschen</button>' : ''}
             <button class="btn btn-ghost" id="cancelBtn">Abbrechen</button>
@@ -943,10 +1131,57 @@
       const time = document.getElementById('f_time').value.trim();
       const link = document.getElementById('f_link').value.trim();
       const note = document.getElementById('f_note').value.trim();
+      const isTransport = document.getElementById('f_transport').checked;
       if(isEdit){
-        item.date = date; item.time = time; item.title = title; item.link = link; item.note = note;
+        item.date = date; item.time = time; item.title = title; item.link = link; item.note = note; item.isTransport = isTransport;
       } else {
-        stop.itinerary.push({ id: uid(), date, time, title, link, note });
+        stop.itinerary.push({ id: uid(), date, time, title, link, note, isTransport });
+      }
+      saveState(); render(); closeModal();
+    };
+  }
+
+  function openTodoModal(todo){
+    const isEdit = !!todo;
+    const root = document.getElementById('modalRoot');
+    root.innerHTML = `
+      <div class="modal-backdrop" id="backdrop">
+        <div class="modal">
+          <h3>${isEdit ? 'To-Do bearbeiten' : 'To-Do hinzufügen'}</h3>
+          <div class="modal-field"><label>Was muss erledigt werden?</label><input id="f_text" placeholder="z.B. Visum-Antrag Singapur" value="${isEdit ? escapeHtml(todo.text) : ''}"></div>
+          <div class="modal-field"><label>Tage vor Abreise ab wann möglich (optional)</label><input id="f_daysBefore" type="number" min="0" placeholder="z.B. 3"></div>
+          <div class="modal-field"><label>ODER festes Datum ab wann möglich (optional)</label><input id="f_absDate" type="date" value="${isEdit && todo.doableFrom ? todo.doableFrom : ''}"></div>
+          <div class="modal-actions">
+            ${isEdit ? '<button class="btn btn-danger" id="delTodoBtn">Löschen</button>' : ''}
+            <button class="btn btn-ghost" id="cancelBtn">Abbrechen</button>
+            <button class="btn btn-gold" id="saveBtn">${isEdit ? 'Speichern' : 'Hinzufügen'}</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('backdrop').onclick = (e)=>{ if(e.target.id==='backdrop') closeModal(); };
+    document.getElementById('cancelBtn').onclick = closeModal;
+    if(isEdit){
+      document.getElementById('delTodoBtn').onclick = () => {
+        state.todos = state.todos.filter(t => t.id !== todo.id);
+        saveState(); render(); closeModal();
+      };
+    }
+    document.getElementById('saveBtn').onclick = () => {
+      const text = document.getElementById('f_text').value.trim();
+      if(!text) return;
+      const daysBefore = document.getElementById('f_daysBefore').value.trim();
+      const absDate = document.getElementById('f_absDate').value;
+      let doableFrom = isEdit ? (todo.doableFrom || null) : null;
+      if(daysBefore !== '' && state.tripStartDate){
+        doableFrom = addDaysISO(state.tripStartDate, -parseInt(daysBefore, 10));
+      } else if(absDate){
+        doableFrom = absDate;
+      }
+      if(isEdit){
+        todo.text = text; todo.doableFrom = doableFrom;
+      } else {
+        state.todos.push({ id: uid(), text, doableFrom, done: false });
       }
       saveState(); render(); closeModal();
     };
