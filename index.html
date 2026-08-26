@@ -377,6 +377,7 @@
     padding: 12px 16px;
     margin: 4px 0 6px;
   }
+  .countdown-bottom { margin: 22px 0 12px; }
   .countdown-num {
     font-family: 'IBM Plex Mono', monospace;
     font-weight: 600;
@@ -390,6 +391,31 @@
     color: var(--text-dim);
     line-height: 1.3;
   }
+
+  .budget-tile { display:flex; align-items:center; justify-content:space-between; gap:16px; width:100%; cursor:pointer; }
+  .budget-bar { flex:1; height:6px; background:rgba(255,255,255,0.1); border-radius:3px; overflow:hidden; }
+  .budget-bar-fill { height:100%; border-radius:3px; transition:width 0.3s ease; }
+
+  .tab-bar { display:flex; gap:8px; margin: 18px 0 20px; }
+  .tab-btn {
+    flex:1; text-align:center; padding:10px; border-radius:10px;
+    background: var(--surface); border:1px solid rgba(255,255,255,0.06);
+    color: var(--text-dim); font-family:'IBM Plex Mono', monospace;
+    font-size: 11px; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer;
+  }
+  .tab-btn.active { background: var(--surface-hi); border-color: var(--gold); color: var(--text); }
+
+  .expense-item { display:flex; align-items:center; gap:10px; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .expense-item:last-child { border-bottom: none; }
+  .expense-body { flex:1; cursor: pointer; min-width: 0; }
+  .expense-text { font-size: 14px; font-weight: 500; }
+  .expense-date { font-size: 11px; color: var(--text-dim); font-family:'IBM Plex Mono', monospace; margin-top: 1px; }
+  .expense-amount { font-family:'IBM Plex Mono', monospace; font-size: 14px; color: var(--gold); flex: 0 0 auto; white-space: nowrap; }
+  .expense-del {
+    background:none; border:none; color: var(--text-dim); opacity:0.5;
+    font-size: 16px; cursor:pointer; padding: 0 4px; flex: 0 0 auto;
+  }
+  .expense-del:active { opacity: 1; }
 
   .fab:active { transform: translateX(-50%) scale(0.96); }
 
@@ -425,11 +451,17 @@
     <p class="sub">Tippt eine Station an für Hotel, Kontakt & Plan · geteilter Stand für euch beide</p>
   </header>
 
-  <div id="todoArea"></div>
+  <div class="tab-bar" id="tabBar"></div>
 
-  <div class="route-strip" id="routeStrip"></div>
+  <div id="tripTab">
+    <div id="todoArea"></div>
+    <div class="route-strip" id="routeStrip"></div>
+    <div id="detailArea"></div>
+  </div>
 
-  <div id="detailArea"></div>
+  <div id="budgetTab"></div>
+
+  <div class="countdown countdown-bottom" id="bottomTile"></div>
 
   <div class="status-banner" id="statusBanner"></div>
 </div>
@@ -473,10 +505,13 @@
   let activeStopId = null;
   let todosShowDone = false; // nur UI-Anzeige, nicht persistiert
   let hotelExpanded = false; // nur UI-Anzeige, nicht persistiert
+  let activeTab = 'trip'; // 'trip' | 'budget' — nur UI-Anzeige, nicht persistiert
 
   const defaultData = () => ({
     tripName: "Singapur → Indonesien",
     todos: [],
+    budgetTotal: 0,
+    expenses: [],
     stops: [
       {
         id: 'sg-1',
@@ -618,6 +653,8 @@
       if(!state.tripStartDate){ state.tripStartDate = '2026-09-11'; needsMigrationSave = true; }
       if(!state.tripEndDate){ state.tripEndDate = '2026-10-03'; needsMigrationSave = true; }
       if(!state.todos){ state.todos = []; needsMigrationSave = true; }
+      if(!state.expenses){ state.expenses = []; needsMigrationSave = true; }
+      if(state.budgetTotal == null){ state.budgetTotal = 0; needsMigrationSave = true; }
       render();
       if(needsFlightImport()){
         // Flug-/Bahndaten werden automatisch übernommen, keine Bestätigung nötig
@@ -903,15 +940,49 @@
 
   function render(){
     document.getElementById('tripTitle').textContent = state.tripName;
-    renderCountdown();
-    renderTodos();
-    renderStrip();
-    renderDetail();
+    renderTiles();
+    renderTabBar();
+    document.getElementById('tripTab').style.display = activeTab === 'trip' ? '' : 'none';
+    document.getElementById('budgetTab').style.display = activeTab === 'budget' ? '' : 'none';
+    document.getElementById('addStopFab').style.display = activeTab === 'trip' ? '' : 'none';
+    if(activeTab === 'trip'){
+      renderTodos();
+      renderStrip();
+      renderDetail();
+    } else {
+      renderBudgetTab();
+    }
   }
 
-  function renderCountdown(){
-    const el = document.getElementById('countdown');
-    if(!state.tripStartDate || !state.tripEndDate){ el.innerHTML = ''; return; }
+  function renderTabBar(){
+    const el = document.getElementById('tabBar');
+    el.innerHTML = `
+      <button class="tab-btn ${activeTab === 'trip' ? 'active' : ''}" id="tabTrip">Reise</button>
+      <button class="tab-btn ${activeTab === 'budget' ? 'active' : ''}" id="tabBudget">Budget</button>
+    `;
+    document.getElementById('tabTrip').onclick = () => { activeTab = 'trip'; render(); };
+    document.getElementById('tabBudget').onclick = () => { activeTab = 'budget'; render(); };
+  }
+
+  // Vor der Abreise: Countdown oben, Budget-Vorschau unten. Ab dem Abreisetag: umgekehrt.
+  function renderTiles(){
+    const topEl = document.getElementById('countdown');
+    const bottomEl = document.getElementById('bottomTile');
+    if(!state.tripStartDate || !state.tripEndDate){ topEl.innerHTML = ''; bottomEl.innerHTML = ''; return; }
+    const now = new Date();
+    now.setHours(0,0,0,0);
+    const start = new Date(state.tripStartDate + 'T00:00:00');
+
+    if(now < start){
+      topEl.innerHTML = countdownContent();
+      renderBudgetTile(bottomEl);
+    } else {
+      renderBudgetTile(topEl);
+      bottomEl.innerHTML = countdownContent();
+    }
+  }
+
+  function countdownContent(){
     const now = new Date();
     now.setHours(0,0,0,0);
     const start = new Date(state.tripStartDate + 'T00:00:00');
@@ -930,7 +1001,28 @@
       num = '✓';
       label = 'Reise beendet';
     }
-    el.innerHTML = `<div class="countdown-num">${num}</div><div class="countdown-label">${label}</div>`;
+    return `<div class="countdown-num">${num}</div><div class="countdown-label">${label}</div>`;
+  }
+
+  function fmtEUR(n){
+    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n || 0);
+  }
+
+  function renderBudgetTile(el){
+    const total = (state.expenses || []).reduce((s, e) => s + e.amount, 0);
+    const budget = state.budgetTotal || 0;
+    const remaining = budget - total;
+    const pct = budget > 0 ? Math.min(100, Math.round((total / budget) * 100)) : 0;
+    el.innerHTML = `
+      <div class="budget-tile" id="budgetTileLink">
+        <div>
+          <div class="countdown-num" style="font-size:22px;">${fmtEUR(total)}</div>
+          <div class="countdown-label">${budget > 0 ? `von ${fmtEUR(budget)} ausgegeben` : 'Ausgaben bisher'}</div>
+        </div>
+        ${budget > 0 ? `<div class="budget-bar"><div class="budget-bar-fill" style="width:${pct}%;background:${remaining < 0 ? 'var(--coral)' : 'var(--gold)'}"></div></div>` : ''}
+      </div>
+    `;
+    document.getElementById('budgetTileLink').onclick = () => { activeTab = 'budget'; render(); };
   }
 
   function renderTodoRow(t, today, draggable){
@@ -1007,6 +1099,58 @@
       const reorderedOpen = orderedIds.map(id => byId[id]);
       state.todos = [...reorderedOpen, ...doneTodos];
       saveState(); render();
+    });
+  }
+
+  function renderBudgetTab(){
+    const el = document.getElementById('budgetTab');
+    const expenses = [...(state.expenses || [])].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const total = (state.expenses || []).reduce((s, e) => s + e.amount, 0);
+    const budget = state.budgetTotal || 0;
+    const remaining = budget - total;
+    const pct = budget > 0 ? Math.min(100, Math.round((total / budget) * 100)) : 0;
+
+    el.innerHTML = `
+      <div class="panel">
+        <div class="panel-title">
+          <span>Budget</span>
+          <button class="edit-btn" id="editBudgetBtn">Budget bearbeiten</button>
+        </div>
+        <div class="countdown-num" style="font-size:28px;">${fmtEUR(total)}</div>
+        <div class="countdown-label">ausgegeben${budget > 0 ? ` · ${fmtEUR(budget)} Budget · ${fmtEUR(remaining)} übrig` : ''}</div>
+        ${budget > 0 ? `<div class="budget-bar" style="margin-top:10px;"><div class="budget-bar-fill" style="width:${pct}%;background:${remaining < 0 ? 'var(--coral)' : 'var(--gold)'}"></div></div>` : ''}
+      </div>
+
+      <div class="panel">
+        <div class="panel-title"><span>Ausgaben</span></div>
+        ${expenses.length ? expenses.map(e => `
+          <div class="expense-item">
+            <div class="expense-body" data-id="${e.id}">
+              <div class="expense-text">${escapeHtml(e.text)}</div>
+              <div class="expense-date">${fmtDay(e.date)}</div>
+            </div>
+            <div class="expense-amount">${fmtEUR(e.amount)}</div>
+            <button class="expense-del" data-id="${e.id}">×</button>
+          </div>
+        `).join('') : '<div class="empty" style="padding:12px 0;">Noch keine Ausgaben erfasst.</div>'}
+        <button class="btn btn-ghost" id="addExpenseBtn" style="margin-top:14px;width:100%;">+ Ausgabe hinzufügen</button>
+      </div>
+    `;
+
+    document.getElementById('editBudgetBtn').onclick = () => openBudgetModal();
+    document.getElementById('addExpenseBtn').onclick = () => openExpenseModal();
+    el.querySelectorAll('.expense-body').forEach(bodyEl => {
+      bodyEl.onclick = () => {
+        const ex = state.expenses.find(x => x.id === bodyEl.dataset.id);
+        if(ex) openExpenseModal(ex);
+      };
+    });
+    el.querySelectorAll('.expense-del').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        state.expenses = state.expenses.filter(x => x.id !== btn.dataset.id);
+        saveState(); render();
+      };
     });
   }
 
@@ -1299,6 +1443,69 @@
     };
   }
 
+  function openBudgetModal(){
+    const root = document.getElementById('modalRoot');
+    root.innerHTML = `
+      <div class="modal-backdrop" id="backdrop">
+        <div class="modal">
+          <h3>Budget festlegen</h3>
+          <div class="modal-field"><label>Gesamtbudget (EUR)</label><input id="f_budget" type="number" min="0" step="0.01" placeholder="z.B. 3000" value="${state.budgetTotal || ''}"></div>
+          <div class="modal-actions">
+            <button class="btn btn-ghost" id="cancelBtn">Abbrechen</button>
+            <button class="btn btn-gold" id="saveBtn">Speichern</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('backdrop').onclick = (e)=>{ if(e.target.id==='backdrop') closeModal(); };
+    document.getElementById('cancelBtn').onclick = closeModal;
+    document.getElementById('saveBtn').onclick = () => {
+      const val = parseFloat(document.getElementById('f_budget').value);
+      state.budgetTotal = isNaN(val) ? 0 : val;
+      saveState(); render(); closeModal();
+    };
+  }
+
+  function openExpenseModal(expense){
+    const isEdit = !!expense;
+    const root = document.getElementById('modalRoot');
+    root.innerHTML = `
+      <div class="modal-backdrop" id="backdrop">
+        <div class="modal">
+          <h3>${isEdit ? 'Ausgabe bearbeiten' : 'Ausgabe hinzufügen'}</h3>
+          <div class="modal-field"><label>Betrag (EUR)</label><input id="f_amount" type="number" min="0" step="0.01" placeholder="z.B. 24.50" value="${isEdit ? expense.amount : ''}"></div>
+          <div class="modal-field"><label>Beschreibung</label><input id="f_text" placeholder="z.B. Taxi zum Flughafen" value="${isEdit ? escapeHtml(expense.text) : ''}"></div>
+          <div class="modal-field"><label>Datum</label><input id="f_date" type="date" value="${isEdit && expense.date ? expense.date : todayISO()}"></div>
+          <div class="modal-actions">
+            ${isEdit ? '<button class="btn btn-danger" id="delExpenseBtn">Löschen</button>' : ''}
+            <button class="btn btn-ghost" id="cancelBtn">Abbrechen</button>
+            <button class="btn btn-gold" id="saveBtn">${isEdit ? 'Speichern' : 'Hinzufügen'}</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('backdrop').onclick = (e)=>{ if(e.target.id==='backdrop') closeModal(); };
+    document.getElementById('cancelBtn').onclick = closeModal;
+    if(isEdit){
+      document.getElementById('delExpenseBtn').onclick = () => {
+        state.expenses = state.expenses.filter(x => x.id !== expense.id);
+        saveState(); render(); closeModal();
+      };
+    }
+    document.getElementById('saveBtn').onclick = () => {
+      const amount = parseFloat(document.getElementById('f_amount').value);
+      const text = document.getElementById('f_text').value.trim();
+      const date = document.getElementById('f_date').value || todayISO();
+      if(!text || isNaN(amount)) return;
+      if(isEdit){
+        expense.amount = amount; expense.text = text; expense.date = date;
+      } else {
+        state.expenses.push({ id: uid(), amount, text, date });
+      }
+      saveState(); render(); closeModal();
+    };
+  }
+
   function confirmDeleteStop(stop){
     const root = document.getElementById('modalRoot');
     root.innerHTML = `
@@ -1325,7 +1532,7 @@
   document.getElementById('addStopFab').onclick = openAddStopModal;
 
   // Zähler live halten, auch wenn die Seite über Mitternacht hinaus offen bleibt
-  setInterval(() => { if(state) renderCountdown(); }, 30 * 60 * 1000);
+  setInterval(() => { if(state) renderTiles(); }, 30 * 60 * 1000);
 
   if (window.db) { initAuthGate(); } else { window.addEventListener('firebaseReady', initAuthGate); }
 })();
