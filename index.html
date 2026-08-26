@@ -252,7 +252,7 @@
   .add-item-row {
     display:flex; gap:8px; margin-top: 12px; flex-wrap: wrap;
   }
-  input, textarea {
+  input, textarea, select {
     background: var(--bg-deep);
     border: 1px solid rgba(255,255,255,0.1);
     color: var(--text);
@@ -263,6 +263,10 @@
     width: 100%;
   }
   input::placeholder, textarea::placeholder { color: var(--text-dim); }
+  .settle-result {
+    font-size: 15px; font-weight: 600; color: var(--gold);
+    padding-top: 10px; margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.08);
+  }
   .ticket input {
     background: #fff;
     color: var(--ink);
@@ -1008,6 +1012,26 @@
     return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n || 0);
   }
 
+  function personLabel(id){
+    return id === 'christine' ? 'Christine' : 'Florian';
+  }
+
+  // Wer hat bezahlt vs. wessen Anteil war es — daraus ergibt sich, wer wem noch etwas schuldet.
+  function computeSettlement(){
+    const paid = { florian: 0, christine: 0 };
+    const owed = { florian: 0, christine: 0 };
+    (state.expenses || []).forEach(e => {
+      const payer = e.paidBy === 'christine' ? 'christine' : 'florian';
+      paid[payer] += e.amount;
+      if(e.splitFor === 'florian') owed.florian += e.amount;
+      else if(e.splitFor === 'christine') owed.christine += e.amount;
+      else { owed.florian += e.amount / 2; owed.christine += e.amount / 2; }
+    });
+    // positiv = hat mehr bezahlt als der eigene Anteil war -> bekommt Geld zurück
+    const balance = { florian: paid.florian - owed.florian, christine: paid.christine - owed.christine };
+    return { paid, owed, balance };
+  }
+
   function renderBudgetTile(el){
     const total = (state.expenses || []).reduce((s, e) => s + e.amount, 0);
     const budget = state.budgetTotal || 0;
@@ -1109,6 +1133,12 @@
     const budget = state.budgetTotal || 0;
     const remaining = budget - total;
     const pct = budget > 0 ? Math.min(100, Math.round((total / budget) * 100)) : 0;
+    const { paid, balance } = computeSettlement();
+
+    let settleText;
+    if(Math.abs(balance.florian) < 0.005) settleText = 'Ausgeglichen — niemand schuldet etwas.';
+    else if(balance.florian > 0) settleText = `Christine schuldet Florian ${fmtEUR(balance.florian)}`;
+    else settleText = `Florian schuldet Christine ${fmtEUR(-balance.florian)}`;
 
     el.innerHTML = `
       <div class="panel">
@@ -1122,12 +1152,27 @@
       </div>
 
       <div class="panel">
+        <div class="panel-title"><span>Abrechnung</span></div>
+        <div class="field-row">
+          <div class="field">
+            <div class="field-label">Florian bezahlt</div>
+            <div class="field-value">${fmtEUR(paid.florian)}</div>
+          </div>
+          <div class="field">
+            <div class="field-label">Christine bezahlt</div>
+            <div class="field-value">${fmtEUR(paid.christine)}</div>
+          </div>
+        </div>
+        <div class="settle-result">${escapeHtml(settleText)}</div>
+      </div>
+
+      <div class="panel">
         <div class="panel-title"><span>Ausgaben</span></div>
         ${expenses.length ? expenses.map(e => `
           <div class="expense-item">
             <div class="expense-body" data-id="${e.id}">
               <div class="expense-text">${escapeHtml(e.text)}</div>
-              <div class="expense-date">${fmtDay(e.date)}</div>
+              <div class="expense-date">${fmtDay(e.date)} · ${personLabel(e.paidBy)} bezahlt${e.splitFor && e.splitFor !== 'both' ? ' für ' + personLabel(e.splitFor) : ' · geteilt'}</div>
             </div>
             <div class="expense-amount">${fmtEUR(e.amount)}</div>
             <button class="expense-del" data-id="${e.id}">×</button>
@@ -1476,6 +1521,21 @@
           <div class="modal-field"><label>Betrag (EUR)</label><input id="f_amount" type="number" min="0" step="0.01" placeholder="z.B. 24.50" value="${isEdit ? expense.amount : ''}"></div>
           <div class="modal-field"><label>Beschreibung</label><input id="f_text" placeholder="z.B. Taxi zum Flughafen" value="${isEdit ? escapeHtml(expense.text) : ''}"></div>
           <div class="modal-field"><label>Datum</label><input id="f_date" type="date" value="${isEdit && expense.date ? expense.date : todayISO()}"></div>
+          <div class="modal-field">
+            <label>Bezahlt von</label>
+            <select id="f_paidBy">
+              <option value="florian" ${!isEdit || expense.paidBy !== 'christine' ? 'selected' : ''}>Florian</option>
+              <option value="christine" ${isEdit && expense.paidBy === 'christine' ? 'selected' : ''}>Christine</option>
+            </select>
+          </div>
+          <div class="modal-field">
+            <label>Für wen</label>
+            <select id="f_splitFor">
+              <option value="both" ${!isEdit || !expense.splitFor || expense.splitFor === 'both' ? 'selected' : ''}>Beide (50/50)</option>
+              <option value="florian" ${isEdit && expense.splitFor === 'florian' ? 'selected' : ''}>Nur Florian</option>
+              <option value="christine" ${isEdit && expense.splitFor === 'christine' ? 'selected' : ''}>Nur Christine</option>
+            </select>
+          </div>
           <div class="modal-actions">
             ${isEdit ? '<button class="btn btn-danger" id="delExpenseBtn">Löschen</button>' : ''}
             <button class="btn btn-ghost" id="cancelBtn">Abbrechen</button>
@@ -1496,11 +1556,14 @@
       const amount = parseFloat(document.getElementById('f_amount').value);
       const text = document.getElementById('f_text').value.trim();
       const date = document.getElementById('f_date').value || todayISO();
+      const paidBy = document.getElementById('f_paidBy').value;
+      const splitFor = document.getElementById('f_splitFor').value;
       if(!text || isNaN(amount)) return;
       if(isEdit){
         expense.amount = amount; expense.text = text; expense.date = date;
+        expense.paidBy = paidBy; expense.splitFor = splitFor;
       } else {
-        state.expenses.push({ id: uid(), amount, text, date });
+        state.expenses.push({ id: uid(), amount, text, date, paidBy, splitFor });
       }
       saveState(); render(); closeModal();
     };
