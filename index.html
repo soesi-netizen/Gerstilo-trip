@@ -226,6 +226,10 @@
   }
   .drag-handle:active { opacity: 0.9; cursor: grabbing; }
   .dragging { box-shadow: 0 6px 18px rgba(0,0,0,0.35); background: var(--surface-hi); border-radius: 8px; }
+  .drag-lock {
+    display: flex; align-items: center; justify-content: center;
+    width: 20px; font-size: 11px; opacity: 0.35; flex: 0 0 auto; align-self: center;
+  }
 
   .todo-item { display:flex; align-items:center; gap:10px; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
   .todo-item:last-child { border-bottom: none; }
@@ -800,6 +804,28 @@
     if(newMinutes != null) item.time = fmtTimeFromMinutes(newMinutes);
   }
 
+  // Setzt ein Element (z.B. einen Transport-Programmpunkt mit fester Zeit) an die zeitlich
+  // passende Stelle innerhalb seines Tages — für Elemente, die nicht per Drag verschoben werden,
+  // sondern nur über eine manuelle Datums-/Uhrzeit-Änderung ihre Position bekommen sollen.
+  function repositionByTime(stop, item){
+    const others = stop.itinerary.filter(it => it !== item);
+    const dayItems = others.filter(it => it.date === item.date);
+    const key = parseTimeMinutes(item.time);
+    const nextInDay = dayItems.find(di => {
+      const k = parseTimeMinutes(di.time);
+      return key != null && k != null && k > key;
+    });
+    let insertIndex;
+    if(nextInDay){
+      insertIndex = others.indexOf(nextInDay);
+    } else {
+      const lastOfDay = dayItems[dayItems.length - 1];
+      insertIndex = lastOfDay ? others.indexOf(lastOfDay) + 1 : others.length;
+    }
+    others.splice(insertIndex, 0, item);
+    stop.itinerary = others;
+  }
+
   function sortByKey(arr, keyFn){
     // stabiler Sort: Einträge ohne erkennbaren Schlüssel bleiben an ihrer relativen Position, aber ans Ende
     return arr
@@ -1243,7 +1269,9 @@
             <div class="day-label">${escapeHtml(d)}</div>
             ${stop.itinerary.filter(i=>i.date===d).map(i => `
               <div class="item${i.isTransport ? ' transport' : ''}" data-drag-item data-drag-group="${escapeHtml(d)}" data-drag-id="${i.id}">
-                <button class="drag-handle" aria-label="Verschieben">⠿</button>
+                ${i.isTransport
+                  ? '<span class="drag-lock" title="Feste Zeit – nur über Bearbeiten verschiebbar">🔒</span>'
+                  : '<button class="drag-handle" aria-label="Verschieben">⠿</button>'}
                 <div class="item-time">${escapeHtml(i.time||'')}</div>
                 <div class="item-body" data-id="${i.id}">
                   <div class="item-title">${i.link ? `<a href="${escapeHtml(normalizeUrl(i.link))}" target="_blank" rel="noopener">${escapeHtml(i.title)}</a>` : escapeHtml(i.title)}</div>
@@ -1438,8 +1466,11 @@
       const isTransport = document.getElementById('f_transport').checked;
       if(isEdit){
         item.date = date; item.time = time; item.title = title; item.link = link; item.note = note; item.isTransport = isTransport;
+        if(isTransport) repositionByTime(stop, item); // feste Zeit -> Position richtet sich nach der Uhrzeit, nicht nach Drag
       } else {
-        stop.itinerary.push({ id: uid(), date, time, title, link, note, isTransport });
+        const newItem = { id: uid(), date, time, title, link, note, isTransport };
+        stop.itinerary.push(newItem);
+        if(isTransport) repositionByTime(stop, newItem);
       }
       saveState(); render(); closeModal();
     };
