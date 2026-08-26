@@ -1073,12 +1073,17 @@
     `;
   }
 
+  // Sortierschlüssel aus dem "ab wann möglich"-Datum (YYYY-MM-DD -> Zahl); ohne Datum ganz ans Ende
+  function todoDateKey(t){
+    return t.doableFrom ? parseInt(t.doableFrom.replace(/-/g, ''), 10) : null;
+  }
+
   function renderTodos(){
     const el = document.getElementById('todoArea');
     const todos = state.todos || [];
     const today = todayISO();
-    const openTodos = todos.filter(t => !t.done);
-    const doneTodos = todos.filter(t => t.done);
+    const openTodos = sortByKey(todos.filter(t => !t.done), todoDateKey);
+    const doneTodos = sortByKey(todos.filter(t => t.done), todoDateKey);
 
     el.innerHTML = `
       <div class="panel">
