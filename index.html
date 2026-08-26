@@ -222,7 +222,7 @@
   .drag-handle {
     background: none; border: none; color: var(--text-dim); opacity: 0.45;
     font-size: 14px; line-height: 1; cursor: grab; padding: 4px 2px;
-    touch-action: none; user-select: none; flex: 0 0 auto; align-self: center;
+    touch-action: pan-y; user-select: none; flex: 0 0 auto; align-self: center;
   }
   .drag-handle:active { opacity: 0.9; cursor: grabbing; }
   .dragging { box-shadow: 0 6px 18px rgba(0,0,0,0.35); background: var(--surface-hi); border-radius: 8px; }
@@ -729,6 +729,36 @@
     return parseInt(m[2],10) * 100 + parseInt(m[1],10); // Monat, dann Tag
   }
 
+  // Uhrzeit wie "16:55" oder "9:00" in Minuten seit Mitternacht; null wenn nicht erkennbar
+  function parseTimeMinutes(timeStr){
+    const m = /^(\d{1,2}):(\d{2})$/.exec((timeStr || '').trim());
+    if(!m) return null;
+    return parseInt(m[1],10) * 60 + parseInt(m[2],10);
+  }
+
+  function fmtTimeFromMinutes(totalMinutes){
+    const t = Math.max(0, Math.min(1439, Math.round(totalMinutes)));
+    return Math.floor(t / 60) + ':' + String(t % 60).padStart(2,'0');
+  }
+
+  // Nach dem Verschieben eines Programmpunkts die Uhrzeit an die neuen Nachbarn im selben Tag anpassen
+  function adjustTimeToNeighbors(stop, item){
+    const dayItems = stop.itinerary.filter(it => it.date === item.date);
+    const idx = dayItems.indexOf(item);
+    const prev = idx > 0 ? parseTimeMinutes(dayItems[idx - 1].time) : null;
+    const next = idx < dayItems.length - 1 ? parseTimeMinutes(dayItems[idx + 1].time) : null;
+
+    let newMinutes = null;
+    if(prev != null && next != null && next > prev){
+      newMinutes = Math.round((prev + next) / 2 / 5) * 5; // Mitte, auf 5 Minuten gerundet
+    } else if(prev != null){
+      newMinutes = prev + 30;
+    } else if(next != null){
+      newMinutes = next - 30;
+    }
+    if(newMinutes != null) item.time = fmtTimeFromMinutes(newMinutes);
+  }
+
   function sortByKey(arr, keyFn){
     // stabiler Sort: Einträge ohne erkennbaren Schlüssel bleiben an ihrer relativen Position, aber ans Ende
     return arr
@@ -767,15 +797,41 @@
      Gruppe seines neuen Nachbarn.
      onReorder(orderedIds, draggedId, newGroup) bekommt die neue Gesamtreihenfolge aller Elemente
      im Container sowie die (ggf. neue) Gruppe des verschobenen Elements. */
+  const DRAG_HOLD_MS = 1000; // so lange muss gedrückt/gehalten werden, bevor das Verschieben losgeht
+  const DRAG_HOLD_TOLERANCE = 8; // px Fingerwackeln, das während der Haltezeit toleriert wird
+
   function attachDragReorder(container, onReorder){
     let ctx = null;
 
     container.querySelectorAll('.drag-handle').forEach(handle => {
-      handle.addEventListener('pointerdown', (e) => onDragStart(e, handle));
+      handle.addEventListener('pointerdown', (e) => onPointerDown(e, handle));
     });
 
-    function onDragStart(e, handle){
-      e.preventDefault();
+    // Wartet DRAG_HOLD_MS, bevor das eigentliche Verschieben losgeht — kurzes Antippen oder ein
+    // Wisch-Scroll über den Griff hinweg löst so noch kein versehentliches Verschieben aus.
+    function onPointerDown(e, handle){
+      const startX = e.clientX, startY = e.clientY, pointerId = e.pointerId;
+      let holdTimer = setTimeout(() => {
+        holdTimer = null;
+        cleanupPending();
+        beginDrag(handle, pointerId, startY);
+      }, DRAG_HOLD_MS);
+
+      const onPendingMove = (ev) => {
+        if(Math.hypot(ev.clientX - startX, ev.clientY - startY) > DRAG_HOLD_TOLERANCE) cleanupPending();
+      };
+      function cleanupPending(){
+        if(holdTimer){ clearTimeout(holdTimer); holdTimer = null; }
+        handle.removeEventListener('pointermove', onPendingMove);
+        handle.removeEventListener('pointerup', cleanupPending);
+        handle.removeEventListener('pointercancel', cleanupPending);
+      }
+      handle.addEventListener('pointermove', onPendingMove);
+      handle.addEventListener('pointerup', cleanupPending, { once:true });
+      handle.addEventListener('pointercancel', cleanupPending, { once:true });
+    }
+
+    function beginDrag(handle, pointerId, startY){
       const itemEl = handle.closest('[data-drag-item]');
       const allItems = Array.from(container.querySelectorAll('[data-drag-item]'));
       const rects = allItems.map(el => el.getBoundingClientRect());
@@ -784,12 +840,12 @@
         handle, itemEl, allItems,
         centers: rects.map(r => r.top + r.height / 2),
         itemH: rects[curIndex].height,
-        startY: e.clientY,
+        startY,
         curIndex,
         targetIndex: curIndex
       };
       itemEl.classList.add('dragging');
-      handle.setPointerCapture(e.pointerId);
+      handle.setPointerCapture(pointerId);
       handle.addEventListener('pointermove', onDragMove);
       handle.addEventListener('pointerup', onDragEnd, { once:true });
       handle.addEventListener('pointercancel', onDragEnd, { once:true });
@@ -797,6 +853,7 @@
 
     function onDragMove(e){
       if(!ctx) return;
+      e.preventDefault(); // verhindert, dass währenddessen noch die Seite scrollt
       const dy = e.clientY - ctx.startY;
       ctx.itemEl.style.transform = `translateY(${dy}px)`;
 
@@ -1060,7 +1117,10 @@
       const byId = Object.fromEntries(stop.itinerary.map(it => [it.id, it]));
       stop.itinerary = orderedIds.map(id => byId[id]);
       const moved = byId[draggedId];
-      if(moved) moved.date = newGroup; // Tag übernehmen, falls über eine Tagesgrenze gezogen
+      if(moved){
+        moved.date = newGroup; // Tag übernehmen, falls über eine Tagesgrenze gezogen
+        adjustTimeToNeighbors(stop, moved); // Uhrzeit an neue Position im Tag anpassen
+      }
       saveState(); render();
     });
   }
