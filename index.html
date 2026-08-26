@@ -148,6 +148,9 @@
   }
   .ticket:before { left: -10px; }
   .ticket:after { right: -10px; }
+  .ticket-compact { padding: 13px 16px 12px; }
+  .ticket-compact .hotel-name { font-size: 16px; margin-bottom: 6px; }
+  .ticket-compact .field { margin-bottom: 0; }
   .hotel-name {
     font-family: 'Space Grotesk', sans-serif;
     font-weight: 700;
@@ -235,6 +238,7 @@
   .todo-item.done .todo-check { background: var(--gold); border-color: var(--gold); color: #2a1d05; }
   .todo-body { flex: 1; cursor: pointer; min-width: 0; }
   .todo-text { font-size: 14px; font-weight: 500; }
+  .todo-text a { color: var(--text); text-decoration: none; border-bottom: 1.5px solid var(--gold); }
   .todo-item.done .todo-text { text-decoration: line-through; color: var(--text-dim); }
   .todo-badge { font-family:'IBM Plex Mono', monospace; font-size: 10.5px; margin-top: 2px; }
   .todo-badge.ready { color: var(--gold); }
@@ -467,6 +471,8 @@
 (function(){
   let state = null;
   let activeStopId = null;
+  let todosShowDone = false; // nur UI-Anzeige, nicht persistiert
+  let hotelExpanded = false; // nur UI-Anzeige, nicht persistiert
 
   const defaultData = () => ({
     tripName: "Singapur → Indonesien",
@@ -870,38 +876,53 @@
     el.innerHTML = `<div class="countdown-num">${num}</div><div class="countdown-label">${label}</div>`;
   }
 
+  function renderTodoRow(t, today, draggable){
+    let badge = '';
+    if(!t.done && t.doableFrom){
+      badge = t.doableFrom <= today
+        ? '<div class="todo-badge ready">🔔 Jetzt möglich</div>'
+        : `<div class="todo-badge future">ab ${fmtDay(t.doableFrom)} möglich</div>`;
+    }
+    const textHtml = t.link
+      ? `<a href="${escapeHtml(normalizeUrl(t.link))}" target="_blank" rel="noopener">${escapeHtml(t.text)}</a>`
+      : escapeHtml(t.text);
+    const dragAttrs = draggable ? `data-drag-item data-drag-group="todos" data-drag-id="${t.id}"` : '';
+    return `
+      <div class="todo-item ${t.done ? 'done' : ''}" ${dragAttrs}>
+        ${draggable ? '<button class="drag-handle" aria-label="Verschieben">⠿</button>' : '<span style="width:20px;flex:0 0 auto;"></span>'}
+        <button class="todo-check" data-id="${t.id}">${t.done ? '✓' : ''}</button>
+        <div class="todo-body" data-id="${t.id}">
+          <div class="todo-text">${textHtml}</div>
+          ${badge}
+        </div>
+        <button class="todo-del" data-id="${t.id}">×</button>
+      </div>
+    `;
+  }
+
   function renderTodos(){
     const el = document.getElementById('todoArea');
     const todos = state.todos || [];
     const today = todayISO();
+    const openTodos = todos.filter(t => !t.done);
+    const doneTodos = todos.filter(t => t.done);
 
     el.innerHTML = `
       <div class="panel">
         <div class="panel-title"><span>To-Do vor der Reise</span></div>
-        ${todos.length ? todos.map(t => {
-          let badge = '';
-          if(!t.done && t.doableFrom){
-            badge = t.doableFrom <= today
-              ? '<div class="todo-badge ready">🔔 Jetzt möglich</div>'
-              : `<div class="todo-badge future">ab ${fmtDay(t.doableFrom)} möglich</div>`;
-          }
-          return `
-            <div class="todo-item ${t.done ? 'done' : ''}" data-drag-item data-drag-group="todos" data-drag-id="${t.id}">
-              <button class="drag-handle" aria-label="Verschieben">⠿</button>
-              <button class="todo-check" data-id="${t.id}">${t.done ? '✓' : ''}</button>
-              <div class="todo-body" data-id="${t.id}">
-                <div class="todo-text">${escapeHtml(t.text)}</div>
-                ${badge}
-              </div>
-              <button class="todo-del" data-id="${t.id}">×</button>
-            </div>
-          `;
-        }).join('') : '<div class="empty" style="padding:12px 0;">Noch keine To-Dos.</div>'}
+        ${openTodos.length ? openTodos.map(t => renderTodoRow(t, today, true)).join('') : '<div class="empty" style="padding:12px 0;">Noch keine offenen To-Dos.</div>'}
+        ${doneTodos.length ? `
+          <button class="edit-btn" id="toggleDoneBtn" style="margin-top:8px;">${todosShowDone ? '▾' : '▸'} Erledigt (${doneTodos.length})</button>
+          ${todosShowDone ? doneTodos.map(t => renderTodoRow(t, today, false)).join('') : ''}
+        ` : ''}
         <button class="btn btn-ghost" id="addTodoBtn" style="margin-top:14px;width:100%;">+ To-Do hinzufügen</button>
       </div>
     `;
 
     document.getElementById('addTodoBtn').onclick = () => openTodoModal();
+    if(doneTodos.length){
+      document.getElementById('toggleDoneBtn').onclick = () => { todosShowDone = !todosShowDone; renderTodos(); };
+    }
     el.querySelectorAll('.todo-check').forEach(btn => {
       btn.onclick = () => {
         const t = state.todos.find(x => x.id === btn.dataset.id);
@@ -909,7 +930,8 @@
       };
     });
     el.querySelectorAll('.todo-body').forEach(bodyEl => {
-      bodyEl.onclick = () => {
+      bodyEl.onclick = (e) => {
+        if(e.target.closest('a')) return; // Link direkt öffnen lassen statt Bearbeiten-Modal
         const t = state.todos.find(x => x.id === bodyEl.dataset.id);
         if(t) openTodoModal(t);
       };
@@ -924,7 +946,9 @@
 
     attachDragReorder(el, (orderedIds) => {
       const byId = Object.fromEntries(state.todos.map(t => [t.id, t]));
-      state.todos = orderedIds.map(id => byId[id]);
+      // Erledigte (nicht ziehbare) To-Dos bleiben unverändert, nur die offene Reihenfolge wird übernommen
+      const reorderedOpen = orderedIds.map(id => byId[id]);
+      state.todos = [...reorderedOpen, ...doneTodos];
       saveState(); render();
     });
   }
@@ -960,31 +984,6 @@
     area.innerHTML = `
       <div class="panel">
         <div class="panel-title">
-          <span>Unterkunft</span>
-          <button class="edit-btn" id="editHotelBtn">Bearbeiten</button>
-        </div>
-        <div class="ticket">
-          <div class="hotel-name">${stop.hotelName ? escapeHtml(stop.hotelName) : '— noch kein Hotel hinterlegt —'}</div>
-          <div class="field">
-            <div class="field-label">Adresse</div>
-            <div class="field-value">${stop.address ? `<a href="https://maps.google.com/?q=${encodeURIComponent(stop.address)}" target="_blank">${escapeHtml(stop.address)}</a>` : '–'}</div>
-          </div>
-          <div class="field-row">
-            <div class="field">
-              <div class="field-label">Telefon</div>
-              <div class="field-value">${stop.phone ? `<a href="tel:${stop.phone.replace(/\s/g,'')}">${escapeHtml(stop.phone)}</a>` : '–'}</div>
-            </div>
-            <div class="field">
-              <div class="field-label">Ansprechpartner</div>
-              <div class="field-value">${stop.contactPerson ? escapeHtml(stop.contactPerson) : '–'}</div>
-            </div>
-          </div>
-          ${stop.notes ? `<hr class="divider-dash"><div class="notes-text">${escapeHtml(stop.notes)}</div>` : ''}
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-title">
           <span>Tagesplan</span>
           <button class="edit-btn" id="delStopBtn" style="color:var(--coral)">Station löschen</button>
         </div>
@@ -1006,9 +1005,40 @@
         </div>
         <button class="btn btn-ghost" id="addItemBtn" style="margin-top:14px;width:100%;">+ Programmpunkt</button>
       </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          <span>Unterkunft</span>
+          <span style="display:flex;gap:6px;">
+            <button class="edit-btn" id="toggleHotelBtn">${hotelExpanded ? 'Weniger' : 'Details'}</button>
+            <button class="edit-btn" id="editHotelBtn">Bearbeiten</button>
+          </span>
+        </div>
+        <div class="ticket${hotelExpanded ? '' : ' ticket-compact'}">
+          <div class="hotel-name">${stop.hotelName ? escapeHtml(stop.hotelName) : '— noch kein Hotel hinterlegt —'}</div>
+          <div class="field">
+            <div class="field-label">Adresse</div>
+            <div class="field-value">${stop.address ? `<a href="https://maps.google.com/?q=${encodeURIComponent(stop.address)}" target="_blank">${escapeHtml(stop.address)}</a>` : '–'}</div>
+          </div>
+          ${hotelExpanded ? `
+            <div class="field-row">
+              <div class="field">
+                <div class="field-label">Telefon</div>
+                <div class="field-value">${stop.phone ? `<a href="tel:${stop.phone.replace(/\s/g,'')}">${escapeHtml(stop.phone)}</a>` : '–'}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Ansprechpartner</div>
+                <div class="field-value">${stop.contactPerson ? escapeHtml(stop.contactPerson) : '–'}</div>
+              </div>
+            </div>
+            ${stop.notes ? `<hr class="divider-dash"><div class="notes-text">${escapeHtml(stop.notes)}</div>` : ''}
+          ` : ''}
+        </div>
+      </div>
     `;
 
     document.getElementById('editHotelBtn').onclick = () => openEditHotelModal(stop);
+    document.getElementById('toggleHotelBtn').onclick = () => { hotelExpanded = !hotelExpanded; renderDetail(); };
     document.getElementById('delStopBtn').onclick = () => confirmDeleteStop(stop);
     document.getElementById('addItemBtn').onclick = () => openItemModal(stop);
     area.querySelectorAll('.item-body').forEach(el => {
@@ -1169,6 +1199,7 @@
         <div class="modal">
           <h3>${isEdit ? 'To-Do bearbeiten' : 'To-Do hinzufügen'}</h3>
           <div class="modal-field"><label>Was muss erledigt werden?</label><input id="f_text" placeholder="z.B. Visum-Antrag Singapur" value="${isEdit ? escapeHtml(todo.text) : ''}"></div>
+          <div class="modal-field"><label>Link (optional)</label><input id="f_link" placeholder="z.B. Antragsformular, Website" value="${isEdit ? escapeHtml(todo.link || '') : ''}"></div>
           <div class="modal-field"><label>Tage vor Abreise ab wann möglich (optional)</label><input id="f_daysBefore" type="number" min="0" placeholder="z.B. 3"></div>
           <div class="modal-field"><label>ODER festes Datum ab wann möglich (optional)</label><input id="f_absDate" type="date" value="${isEdit && todo.doableFrom ? todo.doableFrom : ''}"></div>
           <div class="modal-actions">
@@ -1190,6 +1221,7 @@
     document.getElementById('saveBtn').onclick = () => {
       const text = document.getElementById('f_text').value.trim();
       if(!text) return;
+      const link = document.getElementById('f_link').value.trim();
       const daysBefore = document.getElementById('f_daysBefore').value.trim();
       const absDate = document.getElementById('f_absDate').value;
       let doableFrom = isEdit ? (todo.doableFrom || null) : null;
@@ -1199,9 +1231,9 @@
         doableFrom = absDate;
       }
       if(isEdit){
-        todo.text = text; todo.doableFrom = doableFrom;
+        todo.text = text; todo.link = link; todo.doableFrom = doableFrom;
       } else {
-        state.todos.push({ id: uid(), text, doableFrom, done: false });
+        state.todos.push({ id: uid(), text, link, doableFrom, done: false });
       }
       saveState(); render(); closeModal();
     };
