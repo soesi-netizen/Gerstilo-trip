@@ -225,7 +225,9 @@
     color: var(--text-dim);
     min-width: 42px;
     padding-top: 1px;
+    line-height: 1.4;
   }
+  .item-endtime { font-size: 10.5px; opacity: 0.7; }
   .item-body { flex:1; cursor: pointer; }
   .item-title { font-size: 14px; font-weight: 500; }
   .item-title a { color: var(--text); text-decoration: none; border-bottom: 1.5px solid var(--gold); }
@@ -816,18 +818,34 @@
   function adjustTimeToNeighbors(stop, item){
     const dayItems = stop.itinerary.filter(it => it.date === item.date);
     const idx = dayItems.indexOf(item);
-    const prev = idx > 0 ? parseTimeMinutes(dayItems[idx - 1].time) : null;
-    const next = idx < dayItems.length - 1 ? parseTimeMinutes(dayItems[idx + 1].time) : null;
+    const prevItem = idx > 0 ? dayItems[idx - 1] : null;
+    const nextItem = idx < dayItems.length - 1 ? dayItems[idx + 1] : null;
 
-    let newMinutes = null;
-    if(prev != null && next != null && next > prev){
-      newMinutes = Math.round((prev + next) / 2 / 5) * 5; // Mitte, auf 5 Minuten gerundet
-    } else if(prev != null){
-      newMinutes = prev + 30;
-    } else if(next != null){
-      newMinutes = next - 30;
+    // Untere Grenze: Ende des vorherigen Punkts (oder dessen Beginn, falls keine Endzeit gesetzt) —
+    // so entsteht keine Überschneidung mit einer noch laufenden Aktivität.
+    const prevBound = prevItem ? (parseTimeMinutes(prevItem.endTime) ?? parseTimeMinutes(prevItem.time)) : null;
+    const nextBound = nextItem ? parseTimeMinutes(nextItem.time) : null;
+
+    const ownStart = parseTimeMinutes(item.time);
+    const ownEnd = parseTimeMinutes(item.endTime);
+    const duration = (ownStart != null && ownEnd != null && ownEnd > ownStart) ? ownEnd - ownStart : null;
+
+    let newStart = null;
+    if(prevBound != null && nextBound != null && nextBound > prevBound){
+      newStart = Math.round((prevBound + nextBound) / 2 / 5) * 5; // Mitte der Lücke, auf 5 Min. gerundet
+      if(duration != null && newStart + duration > nextBound){
+        newStart = Math.max(prevBound, nextBound - duration); // eigene Dauer noch in die Lücke quetschen
+      }
+    } else if(prevBound != null){
+      newStart = prevBound + 30;
+    } else if(nextBound != null){
+      newStart = nextBound - (duration != null ? duration : 30);
     }
-    if(newMinutes != null) item.time = fmtTimeFromMinutes(newMinutes);
+
+    if(newStart != null){
+      item.time = fmtTimeFromMinutes(newStart);
+      if(duration != null) item.endTime = fmtTimeFromMinutes(newStart + duration); // Dauer beibehalten
+    }
   }
 
   // Setzt ein Element (z.B. einen Transport-Programmpunkt mit fester Zeit) an die zeitlich
@@ -1336,7 +1354,7 @@
                   : i.isFixed
                     ? '<span class="drag-lock" title="Fester Slot – nur über Bearbeiten verschiebbar">📌</span>'
                     : '<button class="drag-handle" aria-label="Verschieben">⠿</button>'}
-                <div class="item-time">${escapeHtml(i.time||'')}</div>
+                <div class="item-time">${escapeHtml(i.time||'')}${i.endTime ? `<br><span class="item-endtime">–${escapeHtml(i.endTime)}</span>` : ''}</div>
                 <div class="item-body" data-id="${i.id}">
                   <div class="item-title">${i.link ? `<a href="${escapeHtml(normalizeUrl(i.link))}" target="_blank" rel="noopener">${escapeHtml(i.title)}</a>` : escapeHtml(i.title)}</div>
                   ${i.note ? `<div class="item-note">${escapeHtml(i.note)}</div>` : ''}
@@ -1574,7 +1592,8 @@
         <div class="modal">
           <h3>${isEdit ? 'Programmpunkt bearbeiten' : 'Programmpunkt hinzufügen'}</h3>
           <div class="modal-field"><label>Tag (frei, z.B. "Do 17.9.")</label><input id="f_date" placeholder="Do 17.9." value="${isEdit ? escapeHtml(item.date) : ''}"></div>
-          <div class="modal-field"><label>Uhrzeit</label><input id="f_time" placeholder="9:00" value="${isEdit ? escapeHtml(item.time) : ''}"></div>
+          <div class="modal-field"><label>Beginn</label><input id="f_time" placeholder="9:00" value="${isEdit ? escapeHtml(item.time) : ''}"></div>
+          <div class="modal-field"><label>Ende (optional)</label><input id="f_endtime" placeholder="10:30" value="${isEdit ? escapeHtml(item.endTime || '') : ''}"></div>
           <div class="modal-field"><label>Titel</label><input id="f_title" placeholder="z.B. Frühstück im Hotel" value="${isEdit ? escapeHtml(item.title) : ''}"></div>
           <div class="modal-field"><label>Link (optional)</label><input id="f_link" placeholder="z.B. Reservierung, Karte, Website" value="${isEdit ? escapeHtml(item.link || '') : ''}"></div>
           <div class="modal-field"><label>Notiz (optional)</label><input id="f_note" placeholder="" value="${isEdit ? escapeHtml(item.note) : ''}"></div>
@@ -1611,16 +1630,17 @@
       if(!title) return;
       const date = document.getElementById('f_date').value.trim() || 'Ohne Datum';
       const time = document.getElementById('f_time').value.trim();
+      const endTime = document.getElementById('f_endtime').value.trim();
       const link = document.getElementById('f_link').value.trim();
       const note = document.getElementById('f_note').value.trim();
       const isTransport = document.getElementById('f_transport').checked;
       const isFixed = document.getElementById('f_fixed').checked;
       if(isEdit){
-        item.date = date; item.time = time; item.title = title; item.link = link; item.note = note;
+        item.date = date; item.time = time; item.endTime = endTime; item.title = title; item.link = link; item.note = note;
         item.isTransport = isTransport; item.isFixed = isFixed;
         if(isTransport || isFixed) repositionByTime(stop, item); // feste Zeit -> Position richtet sich nach der Uhrzeit, nicht nach Drag
       } else {
-        const newItem = { id: uid(), date, time, title, link, note, isTransport, isFixed };
+        const newItem = { id: uid(), date, time, endTime, title, link, note, isTransport, isFixed };
         stop.itinerary.push(newItem);
         if(isTransport || isFixed) repositionByTime(stop, newItem);
       }
