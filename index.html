@@ -462,6 +462,39 @@
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
   }
+
+  .army-overlay {
+    position: fixed; inset: 0; pointer-events: none; z-index: 999;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+  .army-heart {
+    position: absolute; bottom: -40px; opacity: 0;
+    animation: armyFloat 3.2s ease-in forwards;
+  }
+  @keyframes armyFloat {
+    0% { transform: translateY(0) scale(0.8); opacity: 0; }
+    15% { opacity: 1; }
+    100% { transform: translateY(-100vh) scale(1.1); opacity: 0; }
+  }
+  .army-message {
+    position: relative; text-align: center; color: #C9A0F5;
+    text-shadow: 0 0 18px rgba(201,160,245,0.6);
+    animation: armyMsg 3.4s ease forwards;
+  }
+  .army-message .kr {
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700;
+    font-size: 34px; display: block; margin-bottom: 6px;
+  }
+  .army-message .en {
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-dim);
+  }
+  @keyframes armyMsg {
+    0% { opacity: 0; transform: scale(0.85); }
+    12% { opacity: 1; transform: scale(1); }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+  }
 </style>
 </head>
 <body>
@@ -1804,6 +1837,42 @@
 
   // Zähler live halten, auch wenn die Seite über Mitternacht hinaus offen bleibt
   setInterval(() => { if(state) renderTiles(); }, 30 * 60 * 1000);
+
+  // 🐰🐹🐨🐱🦁🐯🐢 — sieben Tippser auf den Titel
+  (function initArmyEasterEgg(){
+    let taps = 0, tapTimer = null;
+    const title = document.getElementById('tripTitle');
+    if(!title) return;
+    title.addEventListener('click', () => {
+      taps++;
+      clearTimeout(tapTimer);
+      tapTimer = setTimeout(() => { taps = 0; }, 2500);
+      if(taps >= 7){
+        taps = 0;
+        showArmyEasterEgg();
+      }
+    });
+  })();
+
+  function showArmyEasterEgg(){
+    const overlay = document.createElement('div');
+    overlay.className = 'army-overlay';
+    for(let i = 0; i < 24; i++){
+      const h = document.createElement('span');
+      h.className = 'army-heart';
+      h.textContent = '💜';
+      h.style.left = (Math.random() * 100) + '%';
+      h.style.animationDelay = (Math.random() * 1.2) + 's';
+      h.style.fontSize = (18 + Math.random() * 22) + 'px';
+      overlay.appendChild(h);
+    }
+    const msg = document.createElement('div');
+    msg.className = 'army-message';
+    msg.innerHTML = '<span class="kr">보라해</span><span class="en">I purple you</span>';
+    overlay.appendChild(msg);
+    document.body.appendChild(overlay);
+    setTimeout(() => overlay.remove(), 3800);
+  }
 
   if (window.db) { initAuthGate(); } else { window.addEventListener('firebaseReady', initAuthGate); }
 })();
