@@ -1275,7 +1275,8 @@
   // Notizbuch pro Station: lose Ideen/Empfehlungen, in frei wählbaren Kategorien, alles einklappbar
   function renderNotepadPanel(stop){
     const ideas = stop.ideas || [];
-    const sections = [...new Set(ideas.map(n => n.section))];
+    // Standard-Kategorien immer anzeigen (auch leer), plus alle bereits benutzten eigenen Kategorien
+    const sections = [...new Set([...DEFAULT_NOTE_SECTIONS, ...ideas.map(n => n.section)])];
     return `
       <div class="panel">
         <div class="panel-title notepad-toggle" id="notepadToggle">
@@ -1283,21 +1284,21 @@
           <span class="edit-btn">${notepadExpanded ? '▾' : '▸'}</span>
         </div>
         ${notepadExpanded ? `
-          ${sections.length ? sections.map(sec => {
+          ${sections.map(sec => {
             const secIdeas = ideas.filter(n => n.section === sec);
             const open = expandedNoteSections.has(sec);
             return `
               <div class="note-section">
                 <button class="note-section-toggle" data-sec="${escapeHtml(sec)}">${open ? '▾' : '▸'} ${escapeHtml(sec)} (${secIdeas.length})</button>
-                ${open ? secIdeas.map(n => `
+                ${open ? (secIdeas.length ? secIdeas.map(n => `
                   <div class="note-item">
                     <div class="note-text" data-id="${n.id}">${escapeHtml(n.text)}</div>
                     <button class="note-del" data-id="${n.id}">×</button>
                   </div>
-                `).join('') : ''}
+                `).join('') : '<div class="note-item"><div class="note-text" style="cursor:default;color:var(--text-dim);">Noch nichts hier.</div></div>') : ''}
               </div>
             `;
-          }).join('') : '<div class="empty" style="padding:8px 0;">Noch keine Ideen gesammelt.</div>'}
+          }).join('')}
           <button class="btn btn-ghost" id="addIdeaBtn" style="margin-top:12px;width:100%;">+ Idee hinzufügen</button>
         ` : ''}
       </div>
