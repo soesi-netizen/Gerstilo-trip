@@ -129,6 +129,21 @@
     font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
     cursor:pointer; padding:4px 8px;
   }
+  .notepad-toggle { cursor: pointer; }
+  .note-section { margin-bottom: 4px; }
+  .note-section-toggle {
+    width:100%; text-align:left; background:none; border:none; color: var(--text-dim);
+    font-family:'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.05em;
+    padding: 9px 0; cursor:pointer; border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .note-section:first-child .note-section-toggle { border-top: none; }
+  .note-item { display:flex; align-items:flex-start; gap:10px; padding: 5px 0 5px 16px; }
+  .note-text { flex:1; font-size: 13.5px; line-height: 1.4; cursor: pointer; }
+  .note-del {
+    background:none; border:none; color: var(--text-dim); opacity:0.5;
+    font-size: 16px; cursor:pointer; padding: 0 4px; flex: 0 0 auto;
+  }
+  .note-del:active { opacity: 1; }
 
   /* Ticket stub styling for hotel card */
   .ticket {
@@ -515,6 +530,9 @@
   let todosShowDone = false; // nur UI-Anzeige, nicht persistiert
   let hotelExpanded = false; // nur UI-Anzeige, nicht persistiert
   let activeTab = 'trip'; // 'trip' | 'budget' — nur UI-Anzeige, nicht persistiert
+  let notepadExpanded = false; // nur UI-Anzeige, nicht persistiert
+  let expandedNoteSections = new Set(); // nur UI-Anzeige, nicht persistiert
+  const DEFAULT_NOTE_SECTIONS = ['Essen', 'Bücher', 'Abenteuer', 'Sehenswürdigkeiten', 'Aktivität'];
 
   const defaultData = () => ({
     tripName: "Singapur → Indonesien",
@@ -533,6 +551,7 @@
         phone: '+65 6958 4188',
         contactPerson: '',
         notes: 'Direkt am Raffles Place MRT (Exit D, 1 Min). Fitness Park im Haus.',
+        ideas: [],
         itinerary: [
           {id:'i1', date:'Sa 12.9.', time:'16:30', title:'Ankunft Flughafen Changi', note:''},
           {id:'i2', date:'Sa 12.9.', time:'18:00', title:'Check-in Hotel', note:''},
@@ -577,6 +596,7 @@
         phone: '',
         contactPerson: '',
         notes: '',
+        ideas: [],
         itinerary: []
       }
     ]
@@ -1252,6 +1272,38 @@
     strip.appendChild(add);
   }
 
+  // Notizbuch pro Station: lose Ideen/Empfehlungen, in frei wählbaren Kategorien, alles einklappbar
+  function renderNotepadPanel(stop){
+    const ideas = stop.ideas || [];
+    const sections = [...new Set(ideas.map(n => n.section))];
+    return `
+      <div class="panel">
+        <div class="panel-title notepad-toggle" id="notepadToggle">
+          <span>જ⁀➴ Ideen &amp; Notizen${ideas.length ? ` (${ideas.length})` : ''}</span>
+          <span class="edit-btn">${notepadExpanded ? '▾' : '▸'}</span>
+        </div>
+        ${notepadExpanded ? `
+          ${sections.length ? sections.map(sec => {
+            const secIdeas = ideas.filter(n => n.section === sec);
+            const open = expandedNoteSections.has(sec);
+            return `
+              <div class="note-section">
+                <button class="note-section-toggle" data-sec="${escapeHtml(sec)}">${open ? '▾' : '▸'} ${escapeHtml(sec)} (${secIdeas.length})</button>
+                ${open ? secIdeas.map(n => `
+                  <div class="note-item">
+                    <div class="note-text" data-id="${n.id}">${escapeHtml(n.text)}</div>
+                    <button class="note-del" data-id="${n.id}">×</button>
+                  </div>
+                `).join('') : ''}
+              </div>
+            `;
+          }).join('') : '<div class="empty" style="padding:8px 0;">Noch keine Ideen gesammelt.</div>'}
+          <button class="btn btn-ghost" id="addIdeaBtn" style="margin-top:12px;width:100%;">+ Idee hinzufügen</button>
+        ` : ''}
+      </div>
+    `;
+  }
+
   function renderDetail(){
     const area = document.getElementById('detailArea');
     const stop = state.stops.find(s => s.id === activeStopId);
@@ -1288,6 +1340,8 @@
         <button class="btn btn-ghost" id="addItemBtn" style="margin-top:14px;width:100%;">+ Programmpunkt</button>
       </div>
 
+      ${renderNotepadPanel(stop)}
+
       <div class="panel">
         <div class="panel-title">
           <span>Unterkunft</span>
@@ -1323,6 +1377,30 @@
     document.getElementById('toggleHotelBtn').onclick = () => { hotelExpanded = !hotelExpanded; renderDetail(); };
     document.getElementById('delStopBtn').onclick = () => confirmDeleteStop(stop);
     document.getElementById('addItemBtn').onclick = () => openItemModal(stop);
+    document.getElementById('notepadToggle').onclick = () => { notepadExpanded = !notepadExpanded; renderDetail(); };
+    if(notepadExpanded){
+      document.getElementById('addIdeaBtn').onclick = () => openIdeaModal(stop);
+      area.querySelectorAll('.note-section-toggle').forEach(btn => {
+        btn.onclick = () => {
+          const sec = btn.dataset.sec;
+          if(expandedNoteSections.has(sec)) expandedNoteSections.delete(sec); else expandedNoteSections.add(sec);
+          renderDetail();
+        };
+      });
+      area.querySelectorAll('.note-text').forEach(el => {
+        el.onclick = () => {
+          const note = (stop.ideas || []).find(n => n.id === el.dataset.id);
+          if(note) openIdeaModal(stop, note);
+        };
+      });
+      area.querySelectorAll('.note-del').forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          stop.ideas = (stop.ideas || []).filter(n => n.id !== btn.dataset.id);
+          saveState(); render();
+        };
+      });
+    }
     area.querySelectorAll('.item-body').forEach(el => {
       el.onclick = (e) => {
         if(e.target.closest('a')) return; // Link direkt öffnen lassen statt Bearbeiten-Modal
@@ -1386,6 +1464,7 @@
         checkIn: document.getElementById('f_checkin').value,
         checkOut: document.getElementById('f_checkout').value,
         hotelName:'', address:'', phone:'', contactPerson:'', notes:'',
+        ideas: [],
         itinerary: []
       };
       if(!newStop.city){ return; }
@@ -1421,6 +1500,55 @@
       stop.phone = document.getElementById('f_phone').value.trim();
       stop.contactPerson = document.getElementById('f_contact').value.trim();
       stop.notes = document.getElementById('f_notes').value.trim();
+      saveState(); render(); closeModal();
+    };
+  }
+
+  function openIdeaModal(stop, note){
+    const isEdit = !!note;
+    const usedSections = [...new Set((stop.ideas || []).map(n => n.section))];
+    const allSections = [...new Set([...DEFAULT_NOTE_SECTIONS, ...usedSections])];
+    const root = document.getElementById('modalRoot');
+    root.innerHTML = `
+      <div class="modal-backdrop" id="backdrop">
+        <div class="modal">
+          <h3>${isEdit ? 'Idee bearbeiten' : 'Idee hinzufügen'}</h3>
+          <div class="modal-field">
+            <label>Kategorie (frei wählbar)</label>
+            <input id="f_section" list="sectionOptions" placeholder="z.B. Essen" value="${isEdit ? escapeHtml(note.section) : ''}">
+            <datalist id="sectionOptions">${allSections.map(s => `<option value="${escapeHtml(s)}">`).join('')}</datalist>
+          </div>
+          <div class="modal-field">
+            <label>Notiz</label>
+            <textarea id="f_ideatext" rows="3" placeholder="z.B. Buchtipp, Restaurant-Empfehlung, Ausflugsidee ...">${isEdit ? escapeHtml(note.text) : ''}</textarea>
+          </div>
+          <div class="modal-actions">
+            ${isEdit ? '<button class="btn btn-danger" id="delIdeaBtn">Löschen</button>' : ''}
+            <button class="btn btn-ghost" id="cancelBtn">Abbrechen</button>
+            <button class="btn btn-gold" id="saveBtn">${isEdit ? 'Speichern' : 'Hinzufügen'}</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('backdrop').onclick = (e)=>{ if(e.target.id==='backdrop') closeModal(); };
+    document.getElementById('cancelBtn').onclick = closeModal;
+    if(isEdit){
+      document.getElementById('delIdeaBtn').onclick = () => {
+        stop.ideas = stop.ideas.filter(n => n.id !== note.id);
+        saveState(); render(); closeModal();
+      };
+    }
+    document.getElementById('saveBtn').onclick = () => {
+      const section = document.getElementById('f_section').value.trim() || 'Sonstiges';
+      const text = document.getElementById('f_ideatext').value.trim();
+      if(!text) return;
+      if(isEdit){
+        note.section = section; note.text = text;
+      } else {
+        stop.ideas = stop.ideas || [];
+        stop.ideas.push({ id: uid(), section, text });
+        expandedNoteSections.add(section); // neu angelegte Kategorie gleich aufgeklappt zeigen
+      }
       saveState(); render(); closeModal();
     };
   }
