@@ -144,6 +144,11 @@
     font-size: 16px; cursor:pointer; padding: 0 4px; flex: 0 0 auto;
   }
   .note-del:active { opacity: 1; }
+  .note-add-btn {
+    background:none; border:none; color: var(--gold);
+    font-family:'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: 0.05em;
+    padding: 6px 0 6px 16px; cursor:pointer;
+  }
 
   /* Ticket stub styling for hotel card */
   .ticket {
@@ -1290,12 +1295,15 @@
             return `
               <div class="note-section">
                 <button class="note-section-toggle" data-sec="${escapeHtml(sec)}">${open ? '▾' : '▸'} ${escapeHtml(sec)} (${secIdeas.length})</button>
-                ${open ? (secIdeas.length ? secIdeas.map(n => `
-                  <div class="note-item">
-                    <div class="note-text" data-id="${n.id}">${escapeHtml(n.text)}</div>
-                    <button class="note-del" data-id="${n.id}">×</button>
-                  </div>
-                `).join('') : '<div class="note-item"><div class="note-text" style="cursor:default;color:var(--text-dim);">Noch nichts hier.</div></div>') : ''}
+                ${open ? `
+                  ${secIdeas.length ? secIdeas.map(n => `
+                    <div class="note-item">
+                      <div class="note-text" data-id="${n.id}">${escapeHtml(n.text)}</div>
+                      <button class="note-del" data-id="${n.id}">×</button>
+                    </div>
+                  `).join('') : '<div class="note-item"><div class="note-text" style="cursor:default;color:var(--text-dim);">Noch nichts hier.</div></div>'}
+                  <button class="note-add-btn" data-sec="${escapeHtml(sec)}">+ Idee hier hinzufügen</button>
+                ` : ''}
               </div>
             `;
           }).join('')}
@@ -1387,6 +1395,9 @@
           if(expandedNoteSections.has(sec)) expandedNoteSections.delete(sec); else expandedNoteSections.add(sec);
           renderDetail();
         };
+      });
+      area.querySelectorAll('.note-add-btn').forEach(btn => {
+        btn.onclick = () => openIdeaModal(stop, null, btn.dataset.sec);
       });
       area.querySelectorAll('.note-text').forEach(el => {
         el.onclick = () => {
@@ -1505,10 +1516,11 @@
     };
   }
 
-  function openIdeaModal(stop, note){
+  function openIdeaModal(stop, note, presetSection){
     const isEdit = !!note;
     const usedSections = [...new Set((stop.ideas || []).map(n => n.section))];
     const allSections = [...new Set([...DEFAULT_NOTE_SECTIONS, ...usedSections])];
+    const sectionValue = isEdit ? note.section : (presetSection || '');
     const root = document.getElementById('modalRoot');
     root.innerHTML = `
       <div class="modal-backdrop" id="backdrop">
@@ -1516,7 +1528,7 @@
           <h3>${isEdit ? 'Idee bearbeiten' : 'Idee hinzufügen'}</h3>
           <div class="modal-field">
             <label>Kategorie (frei wählbar)</label>
-            <input id="f_section" list="sectionOptions" placeholder="z.B. Essen" value="${isEdit ? escapeHtml(note.section) : ''}">
+            <input id="f_section" list="sectionOptions" placeholder="z.B. Essen" value="${escapeHtml(sectionValue)}">
             <datalist id="sectionOptions">${allSections.map(s => `<option value="${escapeHtml(s)}">`).join('')}</datalist>
           </div>
           <div class="modal-field">
