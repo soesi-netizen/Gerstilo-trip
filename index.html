@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>Reise-Begleiter</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%230A161E'/%3E%3Ccircle cx='50' cy='50' r='34' fill='none' stroke='%23D8A448' stroke-width='5'/%3E%3Cellipse cx='50' cy='50' rx='14' ry='34' fill='none' stroke='%23D8A448' stroke-width='4'/%3E%3Cline x1='16' y1='50' x2='84' y2='50' stroke='%23D8A448' stroke-width='4'/%3E%3Cline x1='21' y1='33' x2='79' y2='33' stroke='%23D8A448' stroke-width='3.5'/%3E%3Cline x1='21' y1='67' x2='79' y2='67' stroke='%23D8A448' stroke-width='3.5'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -1270,8 +1271,10 @@
             ${stop.itinerary.filter(i=>i.date===d).map(i => `
               <div class="item${i.isTransport ? ' transport' : ''}" data-drag-item data-drag-group="${escapeHtml(d)}" data-drag-id="${i.id}">
                 ${i.isTransport
-                  ? '<span class="drag-lock" title="Feste Zeit – nur über Bearbeiten verschiebbar">🔒</span>'
-                  : '<button class="drag-handle" aria-label="Verschieben">⠿</button>'}
+                  ? '<span class="drag-lock" title="Feste Zeit – nur über Bearbeiten verschiebbar">↔️</span>'
+                  : i.isFixed
+                    ? '<span class="drag-lock" title="Fester Slot – nur über Bearbeiten verschiebbar">📌</span>'
+                    : '<button class="drag-handle" aria-label="Verschieben">⠿</button>'}
                 <div class="item-time">${escapeHtml(i.time||'')}</div>
                 <div class="item-body" data-id="${i.id}">
                   <div class="item-title">${i.link ? `<a href="${escapeHtml(normalizeUrl(i.link))}" target="_blank" rel="noopener">${escapeHtml(i.title)}</a>` : escapeHtml(i.title)}</div>
@@ -1437,7 +1440,13 @@
           <div class="modal-field">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
               <input type="checkbox" id="f_transport" style="width:auto;" ${isEdit && item.isTransport ? 'checked' : ''}>
-              <span>Transport / Transfer (andere Farbe im Tagesplan)</span>
+              <span>↔️ Transport / Transfer (andere Farbe im Tagesplan)</span>
+            </label>
+          </div>
+          <div class="modal-field">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="f_fixed" style="width:auto;" ${isEdit && item.isFixed ? 'checked' : ''}>
+              <span>📌 Fester Slot (Reservierung o.ä. – nicht per Drag verschiebbar)</span>
             </label>
           </div>
           <div class="modal-actions">
@@ -1464,13 +1473,15 @@
       const link = document.getElementById('f_link').value.trim();
       const note = document.getElementById('f_note').value.trim();
       const isTransport = document.getElementById('f_transport').checked;
+      const isFixed = document.getElementById('f_fixed').checked;
       if(isEdit){
-        item.date = date; item.time = time; item.title = title; item.link = link; item.note = note; item.isTransport = isTransport;
-        if(isTransport) repositionByTime(stop, item); // feste Zeit -> Position richtet sich nach der Uhrzeit, nicht nach Drag
+        item.date = date; item.time = time; item.title = title; item.link = link; item.note = note;
+        item.isTransport = isTransport; item.isFixed = isFixed;
+        if(isTransport || isFixed) repositionByTime(stop, item); // feste Zeit -> Position richtet sich nach der Uhrzeit, nicht nach Drag
       } else {
-        const newItem = { id: uid(), date, time, title, link, note, isTransport };
+        const newItem = { id: uid(), date, time, title, link, note, isTransport, isFixed };
         stop.itinerary.push(newItem);
-        if(isTransport) repositionByTime(stop, newItem);
+        if(isTransport || isFixed) repositionByTime(stop, newItem);
       }
       saveState(); render(); closeModal();
     };
