@@ -495,6 +495,27 @@
     80% { opacity: 1; }
     100% { opacity: 0; }
   }
+
+  .member-burst {
+    position: fixed; z-index: 998; pointer-events: none;
+    display: flex; gap: 4px; transform: translate(-50%, -100%);
+  }
+  .member-badge {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: linear-gradient(135deg, #C9A0F5, #8B6FD1);
+    color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 8px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transform: scale(0.3) translateY(6px);
+    animation: memberPop 1.1s ease forwards;
+    box-shadow: 0 2px 8px rgba(139,111,209,0.5);
+  }
+  @keyframes memberPop {
+    0% { opacity: 0; transform: scale(0.3) translateY(6px); }
+    25% { opacity: 1; transform: scale(1.15) translateY(-4px); }
+    40% { transform: scale(1) translateY(-2px); }
+    75% { opacity: 1; }
+    100% { opacity: 0; transform: scale(0.9) translateY(-14px); }
+  }
 </style>
 </head>
 <body>
@@ -1207,7 +1228,14 @@
     el.querySelectorAll('.todo-check').forEach(btn => {
       btn.onclick = () => {
         const t = state.todos.find(x => x.id === btn.dataset.id);
-        if(t){ t.done = !t.done; saveState(); render(); }
+        if(!t) return;
+        const wasDone = t.done;
+        t.done = !t.done;
+        if(!wasDone && t.done){
+          const rect = btn.getBoundingClientRect();
+          showMemberBurst(rect.left + rect.width / 2, rect.top);
+        }
+        saveState(); render();
       };
     });
     el.querySelectorAll('.todo-body').forEach(bodyEl => {
@@ -1872,6 +1900,25 @@
     overlay.appendChild(msg);
     document.body.appendChild(overlay);
     setTimeout(() => overlay.remove(), 3800);
+  }
+
+  // Kleine Feier, wenn ein To-Do erledigt wird: die 7 nacheinander aufblitzen lassen
+  const BTS_MEMBERS = ['RM', 'Jin', 'SUGA', 'J-H', 'JM', 'V', 'JK'];
+
+  function showMemberBurst(x, y){
+    const burst = document.createElement('div');
+    burst.className = 'member-burst';
+    burst.style.left = x + 'px';
+    burst.style.top = y + 'px';
+    BTS_MEMBERS.forEach((name, i) => {
+      const badge = document.createElement('span');
+      badge.className = 'member-badge';
+      badge.textContent = name;
+      badge.style.animationDelay = (i * 0.09) + 's';
+      burst.appendChild(badge);
+    });
+    document.body.appendChild(burst);
+    setTimeout(() => burst.remove(), 1600);
   }
 
   if (window.db) { initAuthGate(); } else { window.addEventListener('firebaseReady', initAuthGate); }
