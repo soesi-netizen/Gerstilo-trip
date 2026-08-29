@@ -1566,7 +1566,7 @@
       const trailMatch = match.match(/[.,;:!?)]+$/);
       if(trailMatch){ trail = trailMatch[0]; match = match.slice(0, -trail.length); }
       const href = /^https?:\/\//i.test(match) ? match : 'https://' + match;
-      return `<a href="${href}" target="_blank" rel="noopener">${match}</a>${trail}`;
+      return `<a href="${href}" target="_blank" rel="noopener">${match}</a>${trail}<br>`;
     });
   }
 
