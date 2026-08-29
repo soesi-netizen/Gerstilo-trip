@@ -139,6 +139,7 @@
   .note-section:first-child .note-section-toggle { border-top: none; }
   .note-item { display:flex; align-items:flex-start; gap:10px; padding: 5px 0 5px 16px; }
   .note-text { flex:1; font-size: 13.5px; line-height: 1.4; cursor: pointer; }
+  .note-text a { color: var(--text); text-decoration: none; border-bottom: 1.5px solid var(--gold); }
   .note-del {
     background:none; border:none; color: var(--text-dim); opacity:0.5;
     font-size: 16px; cursor:pointer; padding: 0 4px; flex: 0 0 auto;
@@ -1408,7 +1409,7 @@
                 ${open ? `
                   ${secIdeas.length ? secIdeas.map(n => `
                     <div class="note-item">
-                      <div class="note-text" data-id="${n.id}">${escapeHtml(n.text)}</div>
+                      <div class="note-text" data-id="${n.id}">${linkify(n.text)}</div>
                       <button class="note-del" data-id="${n.id}">×</button>
                     </div>
                   `).join('') : '<div class="note-item"><div class="note-text" style="cursor:default;color:var(--text-dim);">Noch nichts hier.</div></div>'}
@@ -1510,7 +1511,8 @@
         btn.onclick = () => openIdeaModal(stop, null, btn.dataset.sec);
       });
       area.querySelectorAll('.note-text').forEach(el => {
-        el.onclick = () => {
+        el.onclick = (e) => {
+          if(e.target.closest('a')) return; // Link direkt öffnen lassen statt Bearbeiten-Modal
           const note = (stop.ideas || []).find(n => n.id === el.dataset.id);
           if(note) openIdeaModal(stop, note);
         };
@@ -1554,6 +1556,18 @@
     const d = document.createElement('div');
     d.textContent = str == null ? '' : str;
     return d.innerHTML;
+  }
+
+  // Escaped Text ausgeben, dabei enthaltene URLs (http(s)://... oder www....) klickbar machen
+  function linkify(str){
+    const escaped = escapeHtml(str);
+    return escaped.replace(/(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi, (match) => {
+      let trail = '';
+      const trailMatch = match.match(/[.,;:!?)]+$/);
+      if(trailMatch){ trail = trailMatch[0]; match = match.slice(0, -trail.length); }
+      const href = /^https?:\/\//i.test(match) ? match : 'https://' + match;
+      return `<a href="${href}" target="_blank" rel="noopener">${match}</a>${trail}`;
+    });
   }
 
   /* ---- Modals ---- */
