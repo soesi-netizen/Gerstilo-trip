@@ -786,7 +786,7 @@
         // Flug-/Bahndaten werden automatisch übernommen, keine Bestätigung nötig
         importFlightData();
       } else if(needsMigrationSave){
-        saveState();
+        saveState(['tripStartDate','tripEndDate','todos','expenses','budgetTotal']);
       }
       setStatus('Live-Sync aktiv ✓', true);
     }, (err) => {
@@ -801,13 +801,19 @@
     window.__firestoreSyncStarted = false;
   }
 
-  async function saveState(){
+  // keys: welche Top-Level-Felder wirklich geändert wurden (z.B. ['todos']). Nur diese werden
+  // überschrieben — alles andere kommt aus dem frisch gelesenen Firestore-Stand. So kann ein
+  // Gerät mit veraltetem Zwischenstand (z.B. Tab lange im Hintergrund) nie Felder überschreiben,
+  // die es selbst gar nicht angefasst hat.
+  async function saveState(keys){
+    const keyList = Array.isArray(keys) ? keys : (keys ? [keys] : Object.keys(state));
     try {
       const localState = state;
       await window.runTransaction(window.db, async (tx) => {
         const snap = await tx.get(window.tripDocRef);
         const fresh = snap.exists() ? snap.data() : {};
-        const merged = Object.assign({}, fresh, localState);
+        const merged = Object.assign({}, fresh);
+        keyList.forEach(k => { merged[k] = localState[k]; });
         tx.set(window.tripDocRef, merged);
       });
       setStatus('Gespeichert ✓', true);
@@ -868,7 +874,7 @@
     sub.checkOut = '2026-10-02';
     state.flightsImported = true;
 
-    await saveState();
+    await saveState(['stops','flightsImported']);
     render();
   }
 
@@ -1271,7 +1277,7 @@
           const rect = btn.getBoundingClientRect();
           showMemberBurst(rect.left + rect.width / 2, rect.top);
         }
-        saveState(); render();
+        saveState(['todos']); render();
       };
     });
     el.querySelectorAll('.todo-body').forEach(bodyEl => {
@@ -1285,7 +1291,7 @@
       btn.onclick = (e) => {
         e.stopPropagation();
         state.todos = state.todos.filter(t => t.id !== btn.dataset.id);
-        saveState(); render();
+        saveState(['todos']); render();
       };
     });
 
@@ -1294,7 +1300,7 @@
       // Erledigte (nicht ziehbare) To-Dos bleiben unverändert, nur die offene Reihenfolge wird übernommen
       const reorderedOpen = orderedIds.map(id => byId[id]);
       state.todos = [...reorderedOpen, ...doneTodos];
-      saveState(); render();
+      saveState(['todos']); render();
     });
   }
 
@@ -1366,7 +1372,7 @@
       btn.onclick = (e) => {
         e.stopPropagation();
         state.expenses = state.expenses.filter(x => x.id !== btn.dataset.id);
-        saveState(); render();
+        saveState(['expenses']); render();
       };
     });
   }
@@ -1525,7 +1531,7 @@
         btn.onclick = (e) => {
           e.stopPropagation();
           stop.ideas = (stop.ideas || []).filter(n => n.id !== btn.dataset.id);
-          saveState(); render();
+          saveState(['stops']); render();
         };
       });
     }
@@ -1540,7 +1546,7 @@
       btn.onclick = (e) => {
         e.stopPropagation();
         stop.itinerary = stop.itinerary.filter(i => i.id !== btn.dataset.id);
-        saveState(); render();
+        saveState(['stops']); render();
       };
     });
 
@@ -1552,7 +1558,7 @@
         moved.date = newGroup; // Tag übernehmen, falls über eine Tagesgrenze gezogen
         adjustTimeToNeighbors(stop, moved); // Uhrzeit an neue Position im Tag anpassen
       }
-      saveState(); render();
+      saveState(['stops']); render();
     });
   }
 
@@ -1610,7 +1616,7 @@
       if(!newStop.city){ return; }
       state.stops.push(newStop);
       activeStopId = newStop.id;
-      saveState(); render(); closeModal();
+      saveState(['stops']); render(); closeModal();
     };
   }
 
@@ -1640,7 +1646,7 @@
       stop.phone = document.getElementById('f_phone').value.trim();
       stop.contactPerson = document.getElementById('f_contact').value.trim();
       stop.notes = document.getElementById('f_notes').value.trim();
-      saveState(); render(); closeModal();
+      saveState(['stops']); render(); closeModal();
     };
   }
 
@@ -1676,7 +1682,7 @@
     if(isEdit){
       document.getElementById('delIdeaBtn').onclick = () => {
         stop.ideas = stop.ideas.filter(n => n.id !== note.id);
-        saveState(); render(); closeModal();
+        saveState(['stops']); render(); closeModal();
       };
     }
     document.getElementById('saveBtn').onclick = () => {
@@ -1690,7 +1696,7 @@
         stop.ideas.push({ id: uid(), section, text });
         expandedNoteSections.add(section); // neu angelegte Kategorie gleich aufgeklappt zeigen
       }
-      saveState(); render(); closeModal();
+      saveState(['stops']); render(); closeModal();
     };
   }
 
@@ -1732,7 +1738,7 @@
     if(isEdit){
       document.getElementById('delItemBtn').onclick = () => {
         stop.itinerary = stop.itinerary.filter(i => i.id !== item.id);
-        saveState(); render(); closeModal();
+        saveState(['stops']); render(); closeModal();
       };
     }
     document.getElementById('saveBtn').onclick = () => {
@@ -1754,7 +1760,7 @@
         stop.itinerary.push(newItem);
         if(isTransport || isFixed) repositionByTime(stop, newItem);
       }
-      saveState(); render(); closeModal();
+      saveState(['stops']); render(); closeModal();
     };
   }
 
@@ -1782,7 +1788,7 @@
     if(isEdit){
       document.getElementById('delTodoBtn').onclick = () => {
         state.todos = state.todos.filter(t => t.id !== todo.id);
-        saveState(); render(); closeModal();
+        saveState(['todos']); render(); closeModal();
       };
     }
     document.getElementById('saveBtn').onclick = () => {
@@ -1802,7 +1808,7 @@
       } else {
         state.todos.push({ id: uid(), text, link, doableFrom, done: false });
       }
-      saveState(); render(); closeModal();
+      saveState(['todos']); render(); closeModal();
     };
   }
 
@@ -1825,7 +1831,7 @@
     document.getElementById('saveBtn').onclick = () => {
       const val = parseFloat(document.getElementById('f_budget').value);
       state.budgetTotal = isNaN(val) ? 0 : val;
-      saveState(); render(); closeModal();
+      saveState(['budgetTotal']); render(); closeModal();
     };
   }
 
@@ -1867,7 +1873,7 @@
     if(isEdit){
       document.getElementById('delExpenseBtn').onclick = () => {
         state.expenses = state.expenses.filter(x => x.id !== expense.id);
-        saveState(); render(); closeModal();
+        saveState(['expenses']); render(); closeModal();
       };
     }
     document.getElementById('saveBtn').onclick = () => {
@@ -1883,7 +1889,7 @@
       } else {
         state.expenses.push({ id: uid(), amount, text, date, paidBy, splitFor });
       }
-      saveState(); render(); closeModal();
+      saveState(['expenses']); render(); closeModal();
     };
   }
 
@@ -1906,7 +1912,7 @@
     document.getElementById('delBtn').onclick = () => {
       state.stops = state.stops.filter(s => s.id !== stop.id);
       activeStopId = state.stops[0] ? state.stops[0].id : null;
-      saveState(); render(); closeModal();
+      saveState(['stops']); render(); closeModal();
     };
   }
 
