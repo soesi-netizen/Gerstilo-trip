@@ -552,6 +552,28 @@
     0%   { transform: translate(-50%, -50%) rotate(0deg); opacity: 1; }
     100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(var(--rot)); opacity: 0; }
   }
+
+  .star-wrap {
+    position: fixed; z-index: 998; pointer-events: none;
+    display: flex; flex-direction: column; align-items: center;
+    transform: translate(-50%, -100%);
+  }
+  .star-wrap.fadeout-star {
+    transition: opacity 0.35s ease, transform 0.35s ease;
+    opacity: 0; transform: translate(-50%, -120%) scale(0.85);
+  }
+  .star-icon {
+    font-size: 42px; line-height: 1;
+    animation: starPulseTwice 1.3s ease-in-out forwards;
+  }
+  @keyframes starPulseTwice {
+    0%   { transform: scale(0.3); opacity: 0; }
+    15%  { transform: scale(1.3); opacity: 1; }
+    30%  { transform: scale(1); opacity: 1; }
+    45%  { transform: scale(1.3); opacity: 1; }
+    60%  { transform: scale(1); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
 </style>
 </head>
 <body>
@@ -581,6 +603,10 @@
   </div>
 
   <div id="budgetTab"></div>
+
+  <div id="packTab">
+    <div id="packingArea"></div>
+  </div>
 
   <div class="countdown countdown-bottom" id="bottomTile"></div>
 
@@ -625,6 +651,7 @@
   let state = null;
   let activeStopId = null;
   let todosShowDone = false; // nur UI-Anzeige, nicht persistiert
+  let packShowDone = false; // nur UI-Anzeige, nicht persistiert
   let hotelExpanded = false; // nur UI-Anzeige, nicht persistiert
   let activeTab = 'trip'; // 'trip' | 'budget' — nur UI-Anzeige, nicht persistiert
   let notepadExpanded = false; // nur UI-Anzeige, nicht persistiert
@@ -634,6 +661,7 @@
   const defaultData = () => ({
     tripName: "Singapur → Indonesien",
     todos: [],
+    packingList: [],
     budgetTotal: 0,
     expenses: [],
     stops: [
@@ -779,14 +807,22 @@
       if(!state.tripStartDate){ state.tripStartDate = '2026-09-11'; needsMigrationSave = true; }
       if(!state.tripEndDate){ state.tripEndDate = '2026-10-03'; needsMigrationSave = true; }
       if(!state.todos){ state.todos = []; needsMigrationSave = true; }
+      if(!state.packingList){ state.packingList = []; needsMigrationSave = true; }
       if(!state.expenses){ state.expenses = []; needsMigrationSave = true; }
       if(state.budgetTotal == null){ state.budgetTotal = 0; needsMigrationSave = true; }
       render();
-      if(needsFlightImport()){
+      const needsFlight = needsFlightImport();
+      const needsPacking = needsPackingImport();
+      if(needsFlight){
         // Flug-/Bahndaten werden automatisch übernommen, keine Bestätigung nötig
         importFlightData();
-      } else if(needsMigrationSave){
-        saveState(['tripStartDate','tripEndDate','todos','expenses','budgetTotal']);
+      }
+      if(needsPacking){
+        // Packliste einmalig mit der vorgegebenen Liste befüllen
+        importPackingData();
+      }
+      if(!needsFlight && !needsPacking && needsMigrationSave){
+        saveState(['tripStartDate','tripEndDate','todos','packingList','expenses','budgetTotal']);
       }
       setStatus('Live-Sync aktiv ✓', true);
     }, (err) => {
@@ -875,6 +911,40 @@
     state.flightsImported = true;
 
     await saveState(['stops','flightsImported']);
+    render();
+  }
+
+  /* ---- Packliste-Import (einmalig) ---- */
+  const packingPreset = [
+    'Trekking Schuhe', 'Taschenmesser', 'Birkenstock Sandalen/Flip Flops', 'Blasenpflaster',
+    'Schnur', 'Socken (5x)', 'Antibrumm', 'Deo', 'Sonnencreme', 'Haribos',
+    'Badehose / Laufhose', 'Badehose', 'Immunkur', 'Mikrofaser Handtuch (2x)', 'Poloshirt',
+    'Verbandspack', 'Wärmedecke', 'Kleines Taschenmesser', 'UV Schutz Schwimmtshirt', 'Dry Bag',
+    'Einhörner', 'GoPro Handler', 'Trekking Hose lang', 'Trekking Hose kurz', 'Merino Shirt',
+    'Mikrofaser Shirt kurz', 'Mikrofaser Shirt lang', 'Maske', 'GoPro Unterwasser Gehäuse',
+    'Tauchlampe (+Ladegerät)', 'Schwimmbrille', 'Sonnenbrille', 'Riegel', 'Boxershorts (6+1)',
+    'Funktionssocken (3x)', 'Sack für Schmutzwäsche', 'Fußbandage', 'Adapter und Ladegerät (2x)',
+    'Hemd', 'Ohropax', 'Taschentücher', 'GoPro Headstrap', 'T-Shirt (2+1)', 'Pullover',
+    'Fleece Jacke', 'Chino', 'Kurze Hose', 'Einmal Handschuhe',
+    'Reiseapotheke (Ibuprofen, Aktivkohle Tabletten, TanaComp, Cetirizin, Paracetamol, NAC, Nasenspray, Reisetabletten, Malatonin, Schlafmittel, Bepanthen Salbe, Elektrolyte, Tee, Pflaster, Desinfektionsmittel, Fenistil, Cortison Salbe)',
+    'Kulturtasche (Zahnpasta, Zahnbürste, Tagescreme, Shampoo, Duschgel, Sonnencreme, Nasenspray, Desinfektionsmittel, Haarzeug, Rasierer + Ladegerät, Babyshampoo)',
+    'Reisepass', 'Kreditkarten', 'Handy', 'Buch', 'Kleine Sonnencreme', 'GoPro + Equipment',
+    'Umhängetasche', 'Kopfhörer', 'Schlafmaske', 'Snacks', 'Basecap', 'Dive Logbuch',
+    'Stifte (2x)', 'Powerbank (2x)'
+  ];
+
+  function needsPackingImport(){
+    return !state.packingImported;
+  }
+
+  async function importPackingData(){
+    const existing = new Set((state.packingList || []).map(p => p.text.trim().toLowerCase()));
+    const newItems = packingPreset
+      .filter(text => !existing.has(text.trim().toLowerCase()))
+      .map(text => ({ id: uid(), text, done: false }));
+    state.packingList = [...(state.packingList || []), ...newItems];
+    state.packingImported = true;
+    await saveState(['packingList','packingImported']);
     render();
   }
 
@@ -1114,13 +1184,16 @@
     renderTabBar();
     document.getElementById('tripTab').style.display = activeTab === 'trip' ? '' : 'none';
     document.getElementById('budgetTab').style.display = activeTab === 'budget' ? '' : 'none';
+    document.getElementById('packTab').style.display = activeTab === 'pack' ? '' : 'none';
     document.getElementById('addStopFab').style.display = activeTab === 'trip' ? '' : 'none';
     if(activeTab === 'trip'){
       renderTodos();
       renderStrip();
       renderDetail();
-    } else {
+    } else if(activeTab === 'budget'){
       renderBudgetTab();
+    } else {
+      renderPackingList();
     }
   }
 
@@ -1129,9 +1202,11 @@
     el.innerHTML = `
       <button class="tab-btn ${activeTab === 'trip' ? 'active' : ''}" id="tabTrip">Reise</button>
       <button class="tab-btn ${activeTab === 'budget' ? 'active' : ''}" id="tabBudget">Budget</button>
+      <button class="tab-btn ${activeTab === 'pack' ? 'active' : ''}" id="tabPack">Packliste</button>
     `;
     document.getElementById('tabTrip').onclick = () => { activeTab = 'trip'; render(); };
     document.getElementById('tabBudget').onclick = () => { activeTab = 'budget'; render(); };
+    document.getElementById('tabPack').onclick = () => { activeTab = 'pack'; render(); };
   }
 
   // Vor der Abreise: Countdown oben, Budget-Vorschau unten. Ab dem Abreisetag: umgekehrt.
@@ -1301,6 +1376,77 @@
       const reorderedOpen = orderedIds.map(id => byId[id]);
       state.todos = [...reorderedOpen, ...doneTodos];
       saveState(['todos']); render();
+    });
+  }
+
+  function renderPackRow(p, draggable){
+    const dragAttrs = draggable ? `data-drag-item data-drag-group="pack" data-drag-id="${p.id}"` : '';
+    return `
+      <div class="todo-item ${p.done ? 'done' : ''}" ${dragAttrs}>
+        ${draggable ? '<button class="drag-handle" aria-label="Verschieben">⠿</button>' : '<span style="width:20px;flex:0 0 auto;"></span>'}
+        <button class="todo-check" data-id="${p.id}">${p.done ? '✓' : ''}</button>
+        <div class="todo-body" data-id="${p.id}">
+          <div class="todo-text">${escapeHtml(p.text)}</div>
+        </div>
+        <button class="todo-del" data-id="${p.id}">×</button>
+      </div>
+    `;
+  }
+
+  function renderPackingList(){
+    const el = document.getElementById('packingArea');
+    const items = state.packingList || [];
+    const openItems = items.filter(p => !p.done);
+    const doneItems = items.filter(p => p.done);
+
+    el.innerHTML = `
+      <div class="panel">
+        <div class="panel-title"><span>🎒 Packliste</span></div>
+        ${openItems.length ? openItems.map(p => renderPackRow(p, true)).join('') : '<div class="empty" style="padding:12px 0;">Noch nichts auf der Packliste.</div>'}
+        ${doneItems.length ? `
+          <button class="edit-btn" id="togglePackDoneBtn" style="margin-top:8px;">${packShowDone ? '▾' : '▸'} Eingepackt (${doneItems.length})</button>
+          ${packShowDone ? doneItems.map(p => renderPackRow(p, false)).join('') : ''}
+        ` : ''}
+        <button class="btn btn-ghost" id="addPackBtn" style="margin-top:14px;width:100%;">+ Packliste-Eintrag</button>
+      </div>
+    `;
+
+    document.getElementById('addPackBtn').onclick = () => openPackModal();
+    if(doneItems.length){
+      document.getElementById('togglePackDoneBtn').onclick = () => { packShowDone = !packShowDone; renderPackingList(); };
+    }
+    el.querySelectorAll('.todo-check').forEach(btn => {
+      btn.onclick = () => {
+        const p = (state.packingList || []).find(x => x.id === btn.dataset.id);
+        if(!p) return;
+        const wasDone = p.done;
+        p.done = !p.done;
+        if(!wasDone && p.done){
+          const rect = btn.getBoundingClientRect();
+          showMemberStarPulse(rect.left + rect.width / 2, rect.top);
+        }
+        saveState(['packingList']); render();
+      };
+    });
+    el.querySelectorAll('.todo-body').forEach(bodyEl => {
+      bodyEl.onclick = () => {
+        const p = (state.packingList || []).find(x => x.id === bodyEl.dataset.id);
+        if(p) openPackModal(p);
+      };
+    });
+    el.querySelectorAll('.todo-del').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        state.packingList = (state.packingList || []).filter(x => x.id !== btn.dataset.id);
+        saveState(['packingList']); render();
+      };
+    });
+
+    attachDragReorder(el, (orderedIds) => {
+      const byId = Object.fromEntries((state.packingList || []).map(p => [p.id, p]));
+      const reorderedOpen = orderedIds.map(id => byId[id]);
+      state.packingList = [...reorderedOpen, ...doneItems];
+      saveState(['packingList']); render();
     });
   }
 
@@ -1812,6 +1958,43 @@
     };
   }
 
+  function openPackModal(item){
+    const isEdit = !!item;
+    const root = document.getElementById('modalRoot');
+    root.innerHTML = `
+      <div class="modal-backdrop" id="backdrop">
+        <div class="modal">
+          <h3>${isEdit ? 'Eintrag bearbeiten' : 'Packliste-Eintrag hinzufügen'}</h3>
+          <div class="modal-field"><label>Was müsst ihr einpacken?</label><input id="f_packtext" placeholder="z.B. Ladekabel, Sonnencreme" value="${isEdit ? escapeHtml(item.text) : ''}"></div>
+          <div class="modal-actions">
+            ${isEdit ? '<button class="btn btn-danger" id="delPackBtn">Löschen</button>' : ''}
+            <button class="btn btn-ghost" id="cancelBtn">Abbrechen</button>
+            <button class="btn btn-gold" id="saveBtn">${isEdit ? 'Speichern' : 'Hinzufügen'}</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.getElementById('backdrop').onclick = (e)=>{ if(e.target.id==='backdrop') closeModal(); };
+    document.getElementById('cancelBtn').onclick = closeModal;
+    if(isEdit){
+      document.getElementById('delPackBtn').onclick = () => {
+        state.packingList = state.packingList.filter(p => p.id !== item.id);
+        saveState(['packingList']); render(); closeModal();
+      };
+    }
+    document.getElementById('saveBtn').onclick = () => {
+      const text = document.getElementById('f_packtext').value.trim();
+      if(!text) return;
+      if(isEdit){
+        item.text = text;
+      } else {
+        state.packingList = state.packingList || [];
+        state.packingList.push({ id: uid(), text, done: false });
+      }
+      saveState(['packingList']); render(); closeModal();
+    };
+  }
+
   function openBudgetModal(){
     const root = document.getElementById('modalRoot');
     root.innerHTML = `
@@ -2020,6 +2203,38 @@
 
     document.body.appendChild(wrap);
     setTimeout(() => wrap.remove(), 2700);
+  }
+
+  // Wie showMemberBurst, aber für die Packliste: kein wegfliegender Ballon, stattdessen
+  // ein Stern, der zweimal pulsiert, bevor alles zusammen ausblendet.
+  function showMemberStarPulse(x, y){
+    const choices = BTS_MEMBERS.filter(m => m.code !== lastMember);
+    const member = choices[Math.floor(Math.random() * choices.length)];
+    lastMember = member.code;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'star-wrap';
+    wrap.style.left = x + 'px';
+    wrap.style.top = y + 'px';
+
+    const star = document.createElement('div');
+    star.className = 'star-icon';
+    star.textContent = '⭐';
+    wrap.appendChild(star);
+
+    const badge = document.createElement('span');
+    badge.className = 'balloon-badge';
+    if(member.photo){
+      badge.classList.add('balloon-badge-photo');
+      badge.innerHTML = '<img src="' + member.photo + '" alt="' + member.code + '">';
+    } else {
+      badge.textContent = member.code;
+    }
+    wrap.appendChild(badge);
+
+    document.body.appendChild(wrap);
+    setTimeout(() => wrap.classList.add('fadeout-star'), 1300);
+    setTimeout(() => wrap.remove(), 1700);
   }
 
   if (window.db) { initAuthGate(); } else { window.addEventListener('firebaseReady', initAuthGate); }
