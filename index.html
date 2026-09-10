@@ -813,6 +813,7 @@
       render();
       const needsFlight = needsFlightImport();
       const needsPacking = needsPackingImport();
+      const needsPackingChristine = needsPackingImportChristine();
       if(needsFlight){
         // Flug-/Bahndaten werden automatisch übernommen, keine Bestätigung nötig
         importFlightData();
@@ -821,7 +822,11 @@
         // Packliste einmalig mit der vorgegebenen Liste befüllen
         importPackingData();
       }
-      if(!needsFlight && !needsPacking && needsMigrationSave){
+      if(needsPackingChristine){
+        // Gleiche Packliste nochmal, diesmal mit "– Christine" hinter jedem Eintrag
+        importPackingDataChristine();
+      }
+      if(!needsFlight && !needsPacking && !needsPackingChristine && needsMigrationSave){
         saveState(['tripStartDate','tripEndDate','todos','packingList','expenses','budgetTotal']);
       }
       setStatus('Live-Sync aktiv ✓', true);
@@ -945,6 +950,23 @@
     state.packingList = [...(state.packingList || []), ...newItems];
     state.packingImported = true;
     await saveState(['packingList','packingImported']);
+    render();
+  }
+
+  // Gleiche Liste nochmal, diesmal mit "– Christine" hinter jedem Eintrag (eigener einmaliger Import)
+  function needsPackingImportChristine(){
+    return !state.packingImportedChristine;
+  }
+
+  async function importPackingDataChristine(){
+    const existing = new Set((state.packingList || []).map(p => p.text.trim().toLowerCase()));
+    const newItems = packingPreset
+      .map(text => text + ' – Christine')
+      .filter(text => !existing.has(text.trim().toLowerCase()))
+      .map(text => ({ id: uid(), text, done: false }));
+    state.packingList = [...(state.packingList || []), ...newItems];
+    state.packingImportedChristine = true;
+    await saveState(['packingList','packingImportedChristine']);
     render();
   }
 
